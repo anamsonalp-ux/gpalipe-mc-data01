@@ -747,7 +747,44 @@
         function saveToLocalStorage() {
             localStorage.setItem('votersBackup', JSON.stringify(voters));
         }
+        
+async function saveVoter(event) {
+    event.preventDefault();
 
+    // 1. Create the voter object from form fields
+    const newVoter = {
+        id: currentEditId || 'voter_' + Date.now(), // Keep ID if editing, else new
+        firstName: document.getElementById('firstName').value,
+        lastName: document.getElementById('lastName').value,
+        phone: document.getElementById('phone').value,
+        address: document.getElementById('address').value,
+        age: document.getElementById('age').value,
+        gender: document.getElementById('gender').value,
+        occupation: document.getElementById('occupation').value,
+        status: document.getElementById('status').value,
+        ward: document.getElementById('ward').value,
+        village: document.getElementById('village').value,
+        // Make sure these match your Supabase column names!
+        lastVisit: new Date().toISOString().split('T')[0],
+        dateAdded: currentEditId ? undefined : new Date().toISOString().split('T')[0]
+    };
+
+    console.log('Saving to Supabase...', newVoter);
+
+    // 2. Send data to Supabase
+    const { data, error } = await supabase
+        .from('voters')
+        .upsert([newVoter]); // upsert inserts new OR updates existing
+
+    if (error) {
+        console.error('Supabase Save Error:', error);
+        alert('Failed to save: ' + error.message);
+    } else {
+        alert('Voter saved to Supabase!');
+        closeVoterForm();
+        fetchVoters(); // Refresh the list automatically
+    }
+}
         // Initialize on load
         document.addEventListener('DOMContentLoaded', init);
     </script>
