@@ -619,6 +619,11 @@
             });
         }
 
+        // Strip leading numbering like "17." from ward names
+        function cleanWard(ward) {
+            return (ward || '').replace(/^\s*\d+\s*[.)-]\s*/, '');
+        }
+
         function filterVoters() {
             const searchTerm = document.getElementById('searchInput').value.toLowerCase();
             const wardFilter = document.getElementById('wardFilter').value;
@@ -626,7 +631,7 @@
 
             filteredVoters = voters.filter(voter => {
                 const nameMatch = !searchTerm || (voter.full_name || '').toLowerCase().includes(searchTerm);
-                const wardMatch = !wardFilter || (voter.ward || '') === wardFilter;
+                const wardMatch = !wardFilter || cleanWard(voter.ward) === wardFilter;
                 const statusMatch = !statusFilter || (voter.support_status || '') === statusFilter;
 
                 return nameMatch && wardMatch && statusMatch;
@@ -658,7 +663,7 @@
                 row.innerHTML = `
                     <td>${voter.full_name || 'N/A'}</td>
                     <td>${voter.phone || 'N/A'}</td>
-                    <td>${voter.ward || 'N/A'}</td>
+                    <td>${cleanWard(voter.ward) || 'N/A'}</td>
                     <td>${voter.village || 'N/A'}</td>
                     <td><span class="status-badge ${statusClass}">${voter.support_status || 'Undecided'}</span></td>
                     <td>
@@ -697,7 +702,7 @@
             document.getElementById('modalTitle').textContent = 'Edit Voter';
             document.getElementById('voterName').value = voter.full_name || '';
             document.getElementById('voterPhone').value = voter.phone || '';
-            document.getElementById('voterWard').value = voter.ward || '';
+            document.getElementById('voterWard').value = cleanWard(voter.ward);
             document.getElementById('voterVillage').value = voter.village || '';
             document.getElementById('voterStatus').value = voter.support_status || 'Undecided';
             document.getElementById('voterNotes').value = voter.notes || '';
@@ -788,7 +793,7 @@
             const rows = filteredVoters.map(v => [
                 v.full_name || '',
                 v.phone || '',
-                v.ward || '',
+                cleanWard(v.ward),
                 v.village || '',
                 v.support_status || '',
                 v.notes || ''
