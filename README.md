@@ -1,4 +1,8 @@
-SUPABASE_URL=https://twtabchsgjgqnihbhbue.supabase.co
-SUPABASE_PUBLISHABLE_KEY=sb_publishable_r4HVQn0YfR8jBrzyR1OeXg_G8osAaB_
-SUPABASE_SECRET_KEY=sb_secret_Y_kA5nRukOvHYFf_7O_u7A_kZ4jQmOH
-SUPABASE_JWKS_URL=https://twtabchsgjgqnihbhbue.supabase.co/auth/v1/.well-known/jwks.json
+# Voter Tracker
+
+Single-page voter tracking app (`index.html`) backed by Supabase with real-time sync.
+
+Supabase credentials must never be committed to this repository. The browser only
+needs the project URL and the **publishable** key (already embedded in `index.html`).
+Secret / service-role keys belong in Netlify environment variables or a local,
+git-ignored `.env.local` file.

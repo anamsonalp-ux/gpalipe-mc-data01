@@ -548,6 +548,9 @@
 
                 if (error) {
                     log(`✗ Supabase error: ${error.message}`, 'error');
+                    if (error.code === '42501') {
+                        log('✗ The database is blocking access to the voters table. Grant the anon role access and add RLS policies in Supabase.', 'error');
+                    }
                     throw error;
                 }
 
