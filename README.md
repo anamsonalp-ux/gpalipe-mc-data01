@@ -1,4 +1,7 @@
-SUPABASE_URL=https://twtabchsgjgqnihbhbue.supabase.co
-SUPABASE_PUBLISHABLE_KEY=sb_publishable_r4HVQn0YfR8jBrzyR1OeXg_G8osAaB_
-SUPABASE_SECRET_KEY=sb_secret_Y_kA5nRukOvHYFf_7O_u7A_kZ4jQmOH
-SUPABASE_JWKS_URL=https://twtabchsgjgqnihbhbue.supabase.co/auth/v1/.well-known/jwks.json
+# Gibson Palipe Voter Database
+
+A single-page, real-time voter ledger for the Mendi Central Open campaign, built on Supabase.
+
+`index.html` connects to Supabase with the project URL and the **publishable** key. Both are safe to ship to the browser. Access is controlled by Row Level Security on the `voters` table.
+
+Never commit secret or service-role keys to this repository. Keep them in Netlify environment variables or the Supabase dashboard.
