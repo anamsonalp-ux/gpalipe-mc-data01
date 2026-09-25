@@ -1,0 +1,5 @@
+[build.environment]
+  # The Supabase project URL is public by design: it is embedded in the
+  # client-side page (index.html) and README. Private keys must never be
+  # committed and are still scanned.
+  SECRETS_SCAN_OMIT_KEYS = "NEXT_PUBLIC_SUPABASE_URL,NEXT_PUBLIC_SUPABASE_DATABASE_URL"
