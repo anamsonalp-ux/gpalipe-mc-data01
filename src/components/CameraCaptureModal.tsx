@@ -26,8 +26,9 @@ export function CameraCaptureModal({
   const fileInputRef = useRef<HTMLInputElement>(null);
 
   const handleFinishCapture = (photoDataUrl: string) => {
+    // These names are compatibility aliases; only one completion callback should run.
     if (onCapture) onCapture(photoDataUrl);
-    if (onPhotoCaptured) onPhotoCaptured(photoDataUrl);
+    else if (onPhotoCaptured) onPhotoCaptured(photoDataUrl);
     onClose();
   };
 

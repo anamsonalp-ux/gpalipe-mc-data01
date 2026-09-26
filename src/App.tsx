@@ -125,6 +125,8 @@ export default function App() {
   const [isCameraModalOpen, setIsCameraModalOpen] = useState(false);
   const [cameraTargetVoter, setCameraTargetVoter] = useState<Voter | null>(null);
   const [cameraTargetWard, setCameraTargetWard] = useState<string | null>(null);
+  const [isWardFormCamera, setIsWardFormCamera] = useState(false);
+  const [capturedWardPhoto, setCapturedWardPhoto] = useState<{ id: number; dataUrl: string } | null>(null);
   const [editingWardTarget, setEditingWardTarget] = useState<string | null>(null);
   const [viewingPhoto, setViewingPhoto] = useState<{ name: string; photoUrl: string } | null>(null);
   const [isSettingsOpen, setIsSettingsOpen] = useState(false);
@@ -591,7 +593,11 @@ export default function App() {
   const handleCameraCaptureComplete = async (photoDataUrl: string) => {
     if (!photoDataUrl) return;
 
-    if (cameraTargetWard) {
+    if (isWardFormCamera) {
+      setCapturedWardPhoto({ id: Date.now(), dataUrl: photoDataUrl });
+      addLog('📸 Photo attached to ward profile', 'success');
+      setIsWardFormCamera(false);
+    } else if (cameraTargetWard) {
       await saveWardPhoto(cameraTargetWard, photoDataUrl);
       addLog(`📸 Saved photo for ward "${formatWardDisplay(cameraTargetWard)}"`, 'success');
       setCameraTargetWard(null);
@@ -1707,14 +1713,17 @@ export default function App() {
           onAddWard={handleAddWard}
           onEditWard={handleEditWard}
           onDeleteWard={handleDeleteWard}
+          capturedCameraPhoto={capturedWardPhoto}
           onOpenWardCamera={(wardName) => {
             setCameraTargetWard(wardName || null);
+            setIsWardFormCamera(true);
             setIsCameraModalOpen(true);
             addLog(`📸 Camera activated for ward "${wardName || 'General'}"`, 'info');
           }}
           onClose={() => {
             setIsWardModalOpen(false);
             setEditingWardTarget(null);
+            setCapturedWardPhoto(null);
           }}
         />
       )}
@@ -1746,11 +1755,11 @@ export default function App() {
         <CameraCaptureModal
           isOpen={isCameraModalOpen}
           onCapture={handleCameraCaptureComplete}
-          onPhotoCaptured={handleCameraCaptureComplete}
           onClose={() => {
             setIsCameraModalOpen(false);
             setCameraTargetVoter(null);
             setCameraTargetWard(null);
+            setIsWardFormCamera(false);
           }}
         />
       )}

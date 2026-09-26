@@ -33,6 +33,7 @@ interface AddWardModalProps {
   onEditWard?: (oldWardName: string, newWardName: string) => Promise<boolean> | boolean;
   onDeleteWard?: (wardName: string) => void;
   onOpenWardCamera?: (wardName?: string) => void;
+  capturedCameraPhoto?: { id: number; dataUrl: string } | null;
 }
 
 export function AddWardModal({
@@ -45,6 +46,7 @@ export function AddWardModal({
   onEditWard,
   onDeleteWard,
   onOpenWardCamera,
+  capturedCameraPhoto,
 }: AddWardModalProps) {
   const wards = wardsProp || existingWards || [];
 
@@ -63,6 +65,14 @@ export function AddWardModal({
   const [submitting, setSubmitting] = useState(false);
 
   const fileInputRef = useRef<HTMLInputElement>(null);
+
+  // Live camera is hosted by App, so bring its result back into this form.
+  useEffect(() => {
+    if (capturedCameraPhoto) {
+      setWardPhoto(capturedCameraPhoto.dataUrl);
+      setError(null);
+    }
+  }, [capturedCameraPhoto]);
 
   // Load photos for all existing wards on mount / open
   useEffect(() => {
