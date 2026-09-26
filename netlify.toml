@@ -4,7 +4,7 @@
 
 [build.environment]
   NODE_VERSION = "20"
-  NPM_FLAGS = "--include=dev"
+  NPM_FLAGS = "--legacy-peer-deps"
   SECRETS_SCAN_ENABLED = "false"
 
 [[redirects]]
