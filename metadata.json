@@ -1,0 +1,7 @@
+{
+  "name": "Gibson Palipe Voter Database",
+  "description": "Mendi Central Open real-time voter management and campaign tracking system with live Supabase synchronization.",
+  "requestFramePermissions": ["camera"],
+  "majorCapabilities": ["MAJOR_CAPABILITY_SERVER_SIDE_GEMINI_API"]
+}
+
