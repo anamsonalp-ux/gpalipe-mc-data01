@@ -15,7 +15,6 @@ export function CameraCaptureModal({
   onCapture,
   onPhotoCaptured,
 }: CameraCaptureModalProps) {
-  const [stream, setStream] = useState<MediaStream | null>(null);
   const [facingMode, setFacingMode] = useState<'user' | 'environment'>('user');
   const [capturedPreview, setCapturedPreview] = useState<string | null>(null);
   const [error, setError] = useState<string | null>(null);
@@ -24,8 +23,35 @@ export function CameraCaptureModal({
 
   const videoRef = useRef<HTMLVideoElement>(null);
   const fileInputRef = useRef<HTMLInputElement>(null);
+  const streamRef = useRef<MediaStream | null>(null);
+  const cameraRequestRef = useRef(0);
+
+  const stopCamera = () => {
+    cameraRequestRef.current += 1;
+    const activeStream = streamRef.current;
+    streamRef.current = null;
+
+    activeStream?.getTracks().forEach((track) => {
+      try {
+        track.stop();
+      } catch {
+        // The track may already have ended.
+      }
+    });
+
+    if (videoRef.current) {
+      videoRef.current.pause();
+      videoRef.current.srcObject = null;
+    }
+  };
+
+  const handleClose = () => {
+    stopCamera();
+    onClose();
+  };
 
   const handleFinishCapture = (photoDataUrl: string) => {
+    stopCamera();
     // These names are compatibility aliases; only one completion callback should run.
     if (onCapture) onCapture(photoDataUrl);
     else if (onPhotoCaptured) onPhotoCaptured(photoDataUrl);
@@ -45,26 +71,10 @@ export function CameraCaptureModal({
     }
   }, []);
 
-  // Stop camera stream safely
-  const stopCamera = () => {
-    if (stream) {
-      stream.getTracks().forEach((track) => {
-        try {
-          track.stop();
-        } catch {
-          // ignore
-        }
-      });
-      setStream(null);
-    }
-    if (videoRef.current) {
-      videoRef.current.srcObject = null;
-    }
-  };
-
   // Start camera stream with multi-tier fallback
   const startCamera = async (mode: 'user' | 'environment') => {
     stopCamera();
+    const requestId = cameraRequestRef.current;
     setLoadingCamera(true);
     setError(null);
 
@@ -118,7 +128,12 @@ export function CameraCaptureModal({
     }
 
     if (mediaStream) {
-      setStream(mediaStream);
+      if (requestId !== cameraRequestRef.current) {
+        mediaStream.getTracks().forEach((track) => track.stop());
+        return;
+      }
+
+      streamRef.current = mediaStream;
       if (videoRef.current) {
         const video = videoRef.current;
         video.setAttribute('playsinline', 'true');
@@ -212,7 +227,7 @@ export function CameraCaptureModal({
           </div>
           <button
             type="button"
-            onClick={onClose}
+            onClick={handleClose}
             className="p-1.5 rounded-full hover:bg-slate-700 text-slate-400 hover:text-white transition-colors cursor-pointer"
           >
             <X className="w-5 h-5" />
