@@ -36,6 +36,7 @@ import {
   resetStoredSupabaseConfig,
   createSupabaseInstance,
   formatWardDisplay,
+  normalizeWardKey,
   cleanWardName,
   resolveWards,
   saveWardRename,
@@ -333,9 +334,11 @@ export default function App() {
     if (!trimmed) return false;
 
     try {
-      await supabaseClient.from('wards').insert([{ name: trimmed }]);
-    } catch {
-      // fallback
+      const { error } = await supabaseClient.from('wards').insert([{ name: trimmed }]);
+      if (error && error.code !== '23505') throw error;
+    } catch (err: any) {
+      addLog(`Could not save ward to Supabase: ${err.message || 'Unknown error'}`, 'error');
+      return false;
     }
 
     try {
@@ -362,39 +365,49 @@ export default function App() {
     const oldFormatted = formatWardDisplay(oldName);
     const rawWithoutNum = oldName.replace(/^\d+\.\s*/, '').trim();
 
-    // 0. Save persistent rename mappings so old fallback/database names never re-appear
+    // 1. Update database 'wards' table if the old ward has a stored record.
+    try {
+      const updates = [oldName];
+      if (oldFormatted && oldFormatted !== oldName) {
+        updates.push(oldFormatted);
+      }
+      if (rawWithoutNum && rawWithoutNum !== oldName) {
+        updates.push(rawWithoutNum);
+      }
+      for (const name of Array.from(new Set(updates))) {
+        const { error } = await supabaseClient.from('wards').update({ name: trimmed }).eq('name', name);
+        if (error) throw error;
+      }
+    } catch (err: any) {
+      addLog(`Ward rename failed in Supabase: ${err.message || 'Unknown error'}`, 'error');
+      return false;
+    }
+
+    // 2. Cascade rename to voters with this ward in Supabase
+    try {
+      const voterWardNames = [oldName];
+      if (oldFormatted && oldFormatted !== oldName) {
+        voterWardNames.push(oldFormatted);
+      }
+      if (rawWithoutNum && rawWithoutNum !== oldName) {
+        voterWardNames.push(rawWithoutNum);
+      }
+      for (const name of Array.from(new Set(voterWardNames))) {
+        const { error } = await supabaseClient.from('voters').update({ ward: trimmed }).eq('ward', name);
+        if (error) throw error;
+      }
+    } catch (err: any) {
+      addLog(`Voter ward update failed in Supabase: ${err.message || 'Unknown error'}`, 'error');
+      return false;
+    }
+
+    // Persist aliases only after Supabase updates succeed.
     saveWardRename(oldName, trimmed);
     if (oldFormatted && oldFormatted !== oldName) {
       saveWardRename(oldFormatted, trimmed);
     }
     if (rawWithoutNum && rawWithoutNum !== oldName) {
       saveWardRename(rawWithoutNum, trimmed);
-    }
-
-    // 1. Update database 'wards' table if exists
-    try {
-      await supabaseClient.from('wards').update({ name: trimmed }).eq('name', oldName);
-      if (oldFormatted && oldFormatted !== oldName) {
-        await supabaseClient.from('wards').update({ name: trimmed }).eq('name', oldFormatted);
-      }
-      if (rawWithoutNum && rawWithoutNum !== oldName) {
-        await supabaseClient.from('wards').update({ name: trimmed }).eq('name', rawWithoutNum);
-      }
-    } catch {
-      // ignore
-    }
-
-    // 2. Cascade rename to voters with this ward in Supabase
-    try {
-      await supabaseClient.from('voters').update({ ward: trimmed }).eq('ward', oldName);
-      if (oldFormatted && oldFormatted !== oldName) {
-        await supabaseClient.from('voters').update({ ward: trimmed }).eq('ward', oldFormatted);
-      }
-      if (rawWithoutNum && rawWithoutNum !== oldName) {
-        await supabaseClient.from('voters').update({ ward: trimmed }).eq('ward', rawWithoutNum);
-      }
-    } catch {
-      // ignore
     }
 
     // 3. Update localStorage custom wards
@@ -485,6 +498,7 @@ export default function App() {
 
   // Filtered Voters
   const filteredVoters = useMemo(() => {
+    const selectedWardKey = normalizeWardKey(selectedWard);
     return voters.filter((v) => {
       const name = (v.full_name || '').toLowerCase();
       const phone = (v.phone || '').toLowerCase();
@@ -504,9 +518,7 @@ export default function App() {
         notes.includes(term);
 
       const matchesWard =
-        !selectedWard ||
-        v.ward === selectedWard ||
-        formatWardDisplay(v.ward) === selectedWard;
+        !selectedWardKey || normalizeWardKey(v.ward) === selectedWardKey;
 
       const matchesStatus =
         !selectedStatus ||

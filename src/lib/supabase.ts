@@ -200,6 +200,16 @@ export function formatWardDisplay(ward: string | null | undefined): string {
   return trimmed;
 }
 
+export function normalizeWardKey(ward: string | null | undefined): string {
+  if (!ward) return '';
+  return formatWardDisplay(ward)
+    .normalize('NFKC')
+    .toLowerCase()
+    .replace(/[^a-z0-9]+/g, ' ')
+    .trim()
+    .replace(/\s+/g, ' ');
+}
+
 export const INITIAL_FALLBACK_WARDS = [
   '1. Kiburu Box A',
   '2. Kiburu Box C',
