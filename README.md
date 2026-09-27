@@ -1,4 +1,5 @@
-SUPABASE_URL=https://twtabchsgjgqnihbhbue.supabase.co
-SUPABASE_PUBLISHABLE_KEY=sb_publishable_r4HVQn0YfR8jBrzyR1OeXg_G8osAaB_
-SUPABASE_SECRET_KEY=sb_secret_Y_kA5nRukOvHYFf_7O_u7A_kZ4jQmOH
-SUPABASE_JWKS_URL=https://twtabchsgjgqnihbhbue.supabase.co/auth/v1/.well-known/jwks.json
+# Supabase configuration
+
+Copy `.env.example` to `.env` for local development. Never commit a
+`SUPABASE_SECRET_KEY`; secret keys belong only in secure server or hosting
+environment variables.
