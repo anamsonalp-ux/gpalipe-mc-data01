@@ -1,219 +1,3 @@
-import React, { useState, useMemo, useEffect, useRef } from "react";
-import {
-  X, BarChart2, TrendingUp, Users, CheckCircle, HelpCircle,
-  Download, Search, Camera, Upload,
-  Trash2, Pencil, MapPin, Save, AlertCircle,
-} from "lucide-react";
-import { Voter, formatWardDisplay } from "../lib/supabase";
-import { saveWardPhoto, getWardPhoto, deleteWardPhoto, compressImage, generateDummyWardPhoto } from "../lib/photoStorage";
-
-export interface WardStatistic {
-  ward: string;
-  display_name: string;
-  total_voters: number;
-  supporters: number;
-  undecided: number;
-  opposed: number;
-  support_percentage: number;
-  last_updated?: string;
-}
-
-interface WardStatisticsModalProps {
-  isOpen: boolean;
-  onClose: () => void;
-  voters: Voter[];
-  wards: string[];
-  onSelectWardFilter?: (ward: string) => void;
-  supabaseWardStats?: any[];
-  onEditWard?: (oldWardName: string, newWardName: string) => Promise<boolean> | boolean;
-  onOpenWardCamera?: (wardName: string) => void;
-}
-
-interface WardProfileModalProps {
-  ward: string;
-  stat: WardStatistic;
-  onClose: () => void;
-  onEditWard?: (oldName: string, newName: string) => Promise<boolean> | boolean;
-  onOpenWardCamera?: (wardName: string) => void;
-}
-
-function WardProfileModal({ ward, stat, onClose, onEditWard, onOpenWardCamera }: WardProfileModalProps) {
-  const [photo, setPhoto] = useState<string | null>(null);
-  const [editingName, setEditingName] = useState(stat.display_name);
-  const [saving, setSaving] = useState(false);
-  const [saveError, setSaveError] = useState("");
-  const fileInputRef = useRef<HTMLInputElement>(null);
-
-  useEffect(() => {
-    getWardPhoto(ward).then((p) => setPhoto(p));
-  }, [ward]);
-
-  const handleFileUpload = (e: React.ChangeEvent<HTMLInputElement>) => {
-    const file = e.target.files?.[0];
-    if (!file) return;
-    const reader = new FileReader();
-    reader.onload = (ev) => {
-      const img = new Image();
-      img.onload = () => {
-        const compressed = compressImage(img);
-        setPhoto(compressed);
-        saveWardPhoto(ward, compressed);
-      };
-      img.src = ev.target?.result as string;
-    };
-    reader.readAsDataURL(file);
-    e.target.value = "";
-  };
-
-  const handleRemovePhoto = () => {
-    setPhoto(null);
-    deleteWardPhoto(ward);
-  };
-
-  const handleSaveName = async () => {
-    const trimmed = editingName.trim();
-    if (!trimmed) { setSaveError("Ward name cannot be empty."); return; }
-    if (!onEditWard) { onClose(); return; }
-    setSaving(true);
-    setSaveError("");
-    try {
-      await onEditWard(ward, trimmed);
-      onClose();
-    } catch (err: any) {
-      setSaveError(err.message || "Failed to update ward name.");
-    } finally {
-      setSaving(false);
-    }
-  };
-
-  return (
-    <div className="fixed inset-0 z-[60] bg-black/70 backdrop-blur-sm flex items-center justify-center p-3 sm:p-4 overflow-y-auto">
-      <div className="bg-white rounded-2xl max-w-lg w-full shadow-2xl border border-slate-100 overflow-hidden my-auto">
-        <div className="p-4 sm:p-5 bg-gradient-to-r from-indigo-600 via-purple-600 to-indigo-800 text-white flex items-center justify-between">
-          <div className="flex items-center gap-3">
-            <div className="w-10 h-10 rounded-xl bg-white/10 flex items-center justify-center border border-white/20">
-              <MapPin className="w-5 h-5 text-indigo-100" />
-            </div>
-            <div>
-              <h3 className="font-bold text-lg leading-tight">Edit Ward Profile</h3>
-              <p className="text-xs text-indigo-200">{stat.display_name} &bull; {stat.total_voters} voter{stat.total_voters !== 1 ? "s" : ""}</p>
-            </div>
-          </div>
-          <button type="button" onClick={onClose} className="text-white/80 hover:text-white p-2 rounded-xl hover:bg-white/10 transition-colors cursor-pointer">
-            <X className="w-5 h-5" />
-          </button>
-        </div>
-
-        <div className="p-5 sm:p-6 space-y-5 max-h-[80vh] overflow-y-auto">
-          {saveError && (
-            <div className="p-3 rounded-xl bg-rose-50 border border-rose-200 text-rose-700 text-xs flex items-center gap-2">
-              <AlertCircle className="w-4 h-4 shrink-0" /><span>{saveError}</span>
-            </div>
-          )}
-
-          <div className="bg-gradient-to-b from-indigo-50/50 to-slate-50 border border-indigo-100/80 rounded-2xl p-4 sm:p-5">
-            <div className="flex flex-col sm:flex-row items-center gap-4 sm:gap-5">
-              <div className="relative shrink-0">
-                {photo ? (
-                  <div className="relative">
-                    <img src={photo} alt="Ward Profile Photo"
-                      className="w-24 h-24 sm:w-28 sm:h-28 rounded-2xl object-cover border-2 border-indigo-500 shadow-md ring-4 ring-indigo-100/60" />
-                    <div className="absolute -bottom-2 -right-1 bg-emerald-600 text-white text-[10px] font-bold px-2 py-0.5 rounded-full flex items-center gap-1 border border-white">
-                      <CheckCircle className="w-3 h-3" /><span>Attached</span>
-                    </div>
-                  </div>
-                ) : (
-                  <div className="relative">
-                    <img
-                      src={generateDummyWardPhoto(ward)}
-                      alt="Ward Profile Photo"
-                      className="w-24 h-24 sm:w-28 sm:h-28 rounded-2xl object-cover border-2 border-slate-200 shadow-md ring-4 ring-slate-100"
-                    />
-                    <div className="absolute -bottom-2 -right-1 bg-indigo-600 text-white text-[10px] font-bold px-2 py-0.5 rounded-full flex items-center gap-1 border border-white">
-                      <span>Generated</span>
-                    </div>
-                  </div>
-                )}
-              </div>
-              <div className="flex-1 text-center sm:text-left">
-                <div className="flex items-center justify-center sm:justify-start gap-2 mb-1">
-                  <h4 className="text-sm font-bold text-slate-900">Ward Profile Photo</h4>
-                  {photo
-                    ? <span className="bg-emerald-100 text-emerald-800 text-[10px] font-bold px-2 py-0.5 rounded-full">Photo Ready</span>
-                    : <span className="bg-slate-100 text-slate-600 text-[10px] px-2 py-0.5 rounded-full">Optional</span>}
-                </div>
-                <p className="text-xs text-slate-500 mb-3">
-                  {photo ? "Photo is attached to this ward profile and will appear in the ward list." : "Upload a photo from your device or take one with the live camera."}
-                </p>
-                <div className="flex flex-wrap items-center justify-center sm:justify-start gap-2">
-                  {onOpenWardCamera && (
-                    <button type="button" onClick={() => onOpenWardCamera(ward)}
-                      className="px-3.5 py-2 bg-gradient-to-r from-indigo-600 to-purple-600 hover:from-indigo-700 hover:to-purple-700 text-white rounded-xl text-xs font-bold flex items-center gap-1.5 cursor-pointer active:scale-95">
-                      <Camera className="w-3.5 h-3.5" />
-                      <span>{photo ? "Retake Photo" : "Live Camera"}</span>
-                    </button>
-                  )}
-                  <label className="px-3.5 py-2 bg-white hover:bg-slate-50 text-slate-700 border border-slate-300 rounded-xl text-xs font-bold flex items-center gap-1.5 cursor-pointer active:scale-95">
-                    <Upload className="w-3.5 h-3.5 text-slate-500" />
-                    <span>{photo ? "Change File" : "Upload Photo"}</span>
-                    <input ref={fileInputRef} type="file" accept="image/*" onChange={handleFileUpload} className="hidden" />
-                  </label>
-                  {photo && (
-                    <button type="button" onClick={handleRemovePhoto}
-                      className="px-3 py-2 bg-rose-50 hover:bg-rose-100 text-rose-600 border border-rose-200 rounded-xl text-xs font-bold flex items-center gap-1 cursor-pointer active:scale-95">
-                      <Trash2 className="w-3.5 h-3.5" /><span>Remove</span>
-                    </button>
-                  )}
-                </div>
-              </div>
-            </div>
-          </div>
-
-          <div>
-            <label className="block text-xs font-semibold uppercase text-slate-600 mb-1">
-              Ward Name <span className="text-rose-500">*</span>
-            </label>
-            <input type="text" value={editingName}
-              onChange={(e) => { setEditingName(e.target.value); setSaveError(""); }}
-              placeholder="e.g. 42. Kiburu Box B"
-              className="w-full px-3.5 py-2.5 border border-slate-300 rounded-lg text-sm text-slate-900 focus:outline-none focus:ring-2 focus:ring-indigo-500 transition" />
-            <p className="text-[11px] text-slate-500 mt-1">Renaming will update all voter records assigned to this ward.</p>
-          </div>
-
-          <div className="grid grid-cols-3 gap-3">
-            <div className="bg-slate-50 border border-slate-200 rounded-xl p-3 text-center">
-              <div className="text-xs font-bold text-slate-500 uppercase mb-1">Total</div>
-              <div className="text-xl font-black text-slate-900">{stat.total_voters}</div>
-            </div>
-            <div className="bg-emerald-50 border border-emerald-200 rounded-xl p-3 text-center">
-              <div className="text-xs font-bold text-emerald-600 uppercase mb-1">Support</div>
-              <div className="text-xl font-black text-emerald-800">{stat.supporters}</div>
-            </div>
-            <div className="bg-amber-50 border border-amber-200 rounded-xl p-3 text-center">
-              <div className="text-xs font-bold text-amber-600 uppercase mb-1">Undecided</div>
-              <div className="text-xl font-black text-amber-800">{stat.undecided}</div>
-            </div>
-          </div>
-
-          <div className="flex items-center justify-end gap-2 pt-1 border-t border-slate-100">
-            <button type="button" onClick={onClose}
-              className="px-4 py-2 rounded-xl border border-slate-300 text-slate-700 font-semibold text-xs hover:bg-slate-100 transition-all cursor-pointer">
-              Cancel
-            </button>
-            {onEditWard && (
-              <button type="button" onClick={handleSaveName} disabled={saving || !editingName.trim()}
-                className="px-5 py-2 rounded-xl bg-gradient-to-r from-indigo-600 via-purple-600 to-indigo-700 hover:from-indigo-700 hover:to-purple-700 active:scale-95 text-white font-semibold text-xs shadow-md shadow-indigo-600/20 transition-all cursor-pointer flex items-center gap-1.5 disabled:opacity-50">
-                <Save className="w-4 h-4" />
-                <span>{saving ? "Saving..." : "Save Changes"}</span>
-              </button>
-            )}
-          </div>
-        </div>
-      </div>
-    </div>
-  );
-}
-
 export function WardStatisticsModal({
   isOpen, onClose, voters, wards, onSelectWardFilter,
   supabaseWardStats, onEditWard, onOpenWardCamera,
@@ -279,9 +63,10 @@ export function WardStatisticsModal({
     const totalVoters = voters.length;
     const totalSupporters = voters.filter((v) => v.support_status === "Supporter").length;
     const totalUndecided = voters.filter((v) => v.support_status === "Undecided" || !v.support_status).length;
+    const totalOpposed = voters.filter((v) => v.support_status === "Opposed").length;
     const overallPct = totalVoters > 0 ? Math.round((totalSupporters / totalVoters) * 1000) / 10 : 0;
     const topWard = [...wardStatisticsList].sort((a, b) => b.total_voters - a.total_voters)[0];
-    return { totalWardsWithVoters, totalVoters, totalSupporters, totalUndecided, overallPct, topWard };
+    return { totalWardsWithVoters, totalVoters, totalSupporters, totalUndecided, totalOpposed, overallPct, topWard };
   }, [wardStatisticsList, voters]);
 
   const filteredStats = useMemo(() => {
@@ -375,6 +160,13 @@ export function WardStatisticsModal({
                 <div className="text-2xl font-black text-amber-800">{totals.totalUndecided}</div>
                 <div className="text-[11px] text-amber-600 mt-0.5">Key outreach targets</div>
               </div>
+              <div className="bg-rose-50/70 border border-rose-200/80 rounded-2xl p-3.5">
+                <div className="text-[11px] font-bold uppercase text-rose-700 mb-1 flex items-center justify-between">
+                  <span>Opposed</span><AlertCircle className="w-3.5 h-3.5 text-rose-600" />
+                </div>
+                <div className="text-2xl font-black text-rose-800">{totals.totalOpposed}</div>
+                <div className="text-[11px] text-rose-600 mt-0.5">Needs persuasion</div>
+              </div>
               <div className="bg-indigo-50/70 border border-indigo-200/80 rounded-2xl p-3.5">
                 <div className="text-[11px] font-bold uppercase text-indigo-700 mb-1 flex items-center justify-between">
                   <span>Top Ward</span><TrendingUp className="w-3.5 h-3.5 text-indigo-600" />
@@ -402,7 +194,8 @@ export function WardStatisticsModal({
                   {(["voters", "supporters", "percentage"] as const).map((key) => (
                     <button key={key} type="button"
                       onClick={() => { if (sortBy === key) setSortOrder(sortOrder === "desc" ? "asc" : "desc"); else { setSortBy(key); setSortOrder("desc"); } }}
-                      className={`px-2 py-1 rounded-lg font-bold cursor-pointer transition-colors ${sortBy === key ? "bg-white text-indigo-600 shadow-sm" : "text-slate-600 hover:text-slate-900"}`}>
+                      className={`px-2 py-1 rounded-lg font-bold cursor-pointer transition-colors ${sortBy === key ? "bg-white text-indigo-600 shadow-sm" : "text-slate-600 hover:text-slate-900"}`}
+                    >
                       {key === "percentage" ? "Rate %" : key.charAt(0).toUpperCase() + key.slice(1)}
                       {sortBy === key && (sortOrder === "desc" ? " ↓" : " ↑")}
                     </button>
@@ -475,7 +268,7 @@ export function WardStatisticsModal({
                             {hasVoters ? (
                               <div className="flex items-center justify-center gap-2">
                                 <div className="w-14 bg-slate-200 rounded-full h-2 overflow-hidden shrink-0">
-                                  <div className={`h-full rounded-full transition-all duration-300 ${item.support_percentage >= 50 ? "bg-emerald-500" : item.support_percentage >= 25 ? "bg-amber-500" : "bg-indigo-400"}`}
+                                  <div className={`h-full rounded-full transition-all duration-300 ${item.support_percentage >= 50 ? "bg-emerald-500" : item.support_percentage >= 25 ? "bg-amber-500" : "bg-rose-400"}`}
                                     style={{ width: `${Math.min(item.support_percentage, 100)}%` }} />
                                 </div>
                                 <span className="font-bold text-[11px] text-slate-800 w-8 text-right">{item.support_percentage}%</span>
@@ -485,12 +278,12 @@ export function WardStatisticsModal({
                           <td className="py-3 px-4 text-right">
                             <div className="flex items-center justify-end gap-1.5">
                               <button type="button" onClick={() => setEditingWardProfile(item.ward)}
-                                className="px-2.5 py-1.5 bg-indigo-50 hover:bg-indigo-100 text-indigo-700 font-bold rounded-lg transition-colors cursor-pointer text-[11px] flex items-center gap-1">
+                                className="px-2.5 py-1.5 bg-indigo-50 hover:bg-indigo-100 text-indigo-700 font-bold rounded-lg transition-colors cursor-pointer text-[11px] flex items-center gap-1.5">
                                 <Pencil className="w-3 h-3" /><span className="hidden sm:inline">Edit</span>
                               </button>
                               {onSelectWardFilter && hasVoters && (
                                 <button type="button" onClick={() => { onSelectWardFilter(item.ward); onClose(); }}
-                                  className="px-2.5 py-1.5 bg-emerald-50 hover:bg-emerald-100 text-emerald-700 font-bold rounded-lg transition-colors cursor-pointer text-[11px] flex items-center gap-1">
+                                  className="px-2.5 py-1.5 bg-emerald-50 hover:bg-emerald-100 text-emerald-700 font-bold rounded-lg transition-colors cursor-pointer text-[11px] flex items-center gap-1.5">
                                   <Users className="w-3 h-3" /><span className="hidden sm:inline">Voters</span>
                                 </button>
                               )}
