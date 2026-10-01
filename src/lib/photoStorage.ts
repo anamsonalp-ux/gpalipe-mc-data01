@@ -1,8 +1,11 @@
+import { createSupabaseInstance, getStoredSupabaseConfig } from './supabase';
+
 // IndexedDB photo storage for voter photos
 
 const DB_NAME = 'gp_voter_photos_db';
 const STORE_NAME = 'photos';
 const DB_VERSION = 1;
+const SUPABASE_BUCKET = 'gp-photos';
 
 function openDB(): Promise<IDBDatabase> {
   return new Promise((resolve, reject) => {
@@ -18,7 +21,72 @@ function openDB(): Promise<IDBDatabase> {
   });
 }
 
+function dataUrlToBlob(dataUrl: string): Blob {
+  const [header, payload] = dataUrl.split(',');
+  const mimeMatch = header.match(/data:(.*?);base64/);
+  const mime = mimeMatch ? mimeMatch[1] : 'image/jpeg';
+  const binary = atob(payload);
+  const bytes = new Uint8Array(binary.length);
+  for (let i = 0; i < binary.length; i += 1) {
+    bytes[i] = binary.charCodeAt(i);
+  }
+  return new Blob([bytes], { type: mime });
+}
+
+function safeSupabaseStorageKey(value: string | number): string {
+  return String(value).trim().replace(/[^a-zA-Z0-9._/-]+/g, '_');
+}
+
+async function tryUploadToSupabase(kind: 'voter' | 'ward', key: string | number, photoDataUrl: string): Promise<string | null> {
+  try {
+    const { url, key: anonKey } = getStoredSupabaseConfig();
+    if (!url || !anonKey) return null;
+
+    const client = createSupabaseInstance(url, anonKey);
+    const storagePath = `${kind}/${safeSupabaseStorageKey(key)}.jpg`;
+    const blob = dataUrlToBlob(photoDataUrl);
+    const { error } = await client.storage.from(SUPABASE_BUCKET).upload(storagePath, blob, {
+      cacheControl: '3600',
+      upsert: true,
+      contentType: 'image/jpeg',
+    });
+
+    if (error) {
+      return null;
+    }
+
+    const { data } = client.storage.from(SUPABASE_BUCKET).getPublicUrl(storagePath);
+    return data?.publicUrl || null;
+  } catch {
+    return null;
+  }
+}
+
+async function tryDeleteFromSupabase(kind: 'voter' | 'ward', key: string | number): Promise<void> {
+  try {
+    const { url, key: anonKey } = getStoredSupabaseConfig();
+    if (!url || !anonKey) return;
+
+    const client = createSupabaseInstance(url, anonKey);
+    const storagePath = `${kind}/${safeSupabaseStorageKey(key)}.jpg`;
+    await client.storage.from(SUPABASE_BUCKET).remove([storagePath]);
+  } catch {
+    // ignore delete failures; local browser storage cleanup is still handled below
+  }
+}
+
 export async function saveVoterPhoto(voterKey: string | number, photoDataUrl: string): Promise<void> {
+  try {
+    const publicUrl = await tryUploadToSupabase('voter', voterKey, photoDataUrl);
+    if (publicUrl) {
+      localStorage.setItem(`gp_photo_${voterKey}`, publicUrl);
+    } else {
+      localStorage.setItem(`gp_photo_${voterKey}`, photoDataUrl);
+    }
+  } catch {
+    localStorage.setItem(`gp_photo_${voterKey}`, photoDataUrl);
+  }
+
   try {
     const db = await openDB();
     return new Promise((resolve, reject) => {
@@ -39,6 +107,9 @@ export async function saveVoterPhoto(voterKey: string | number, photoDataUrl: st
 }
 
 export async function getVoterPhoto(voterKey: string | number): Promise<string | null> {
+  const localValue = localStorage.getItem(`gp_photo_${voterKey}`);
+  if (localValue) return localValue;
+
   try {
     const db = await openDB();
     return new Promise((resolve) => {
@@ -49,20 +120,20 @@ export async function getVoterPhoto(voterKey: string | number): Promise<string |
         if (req.result) {
           resolve(req.result);
         } else {
-          // fallback to localStorage
-          resolve(localStorage.getItem(`gp_photo_${voterKey}`));
+          resolve(null);
         }
       };
       req.onerror = () => {
-        resolve(localStorage.getItem(`gp_photo_${voterKey}`));
+        resolve(null);
       };
     });
   } catch {
-    return localStorage.getItem(`gp_photo_${voterKey}`);
+    return null;
   }
 }
 
 export async function deleteVoterPhoto(voterKey: string | number): Promise<void> {
+  await tryDeleteFromSupabase('voter', voterKey);
   try {
     const db = await openDB();
     const tx = db.transaction(STORE_NAME, 'readwrite');
@@ -241,6 +312,17 @@ function wardKey(wardName: string): string {
 export async function saveWardPhoto(wardName: string, photoDataUrl: string): Promise<void> {
   const key = wardKey(wardName);
   try {
+    const publicUrl = await tryUploadToSupabase('ward', key, photoDataUrl);
+    if (publicUrl) {
+      localStorage.setItem(`gp_ward_photo_${key}`, publicUrl);
+    } else {
+      localStorage.setItem(`gp_ward_photo_${key}`, photoDataUrl);
+    }
+  } catch {
+    localStorage.setItem(`gp_ward_photo_${key}`, photoDataUrl);
+  }
+
+  try {
     const db = await openDB();
     return new Promise((resolve, reject) => {
       const tx = db.transaction(STORE_NAME, 'readwrite');
@@ -256,22 +338,26 @@ export async function saveWardPhoto(wardName: string, photoDataUrl: string): Pro
 
 export async function getWardPhoto(wardName: string): Promise<string | null> {
   const key = wardKey(wardName);
+  const localValue = localStorage.getItem(`gp_ward_photo_${key}`);
+  if (localValue) return localValue;
+
   try {
     const db = await openDB();
     return new Promise((resolve) => {
       const tx = db.transaction(STORE_NAME, 'readonly');
       const store = tx.objectStore(STORE_NAME);
       const req = store.get(key);
-      req.onsuccess = () => resolve(req.result ?? localStorage.getItem(`gp_ward_photo_${key}`));
-      req.onerror = () => resolve(localStorage.getItem(`gp_ward_photo_${key}`));
+      req.onsuccess = () => resolve(req.result ?? null);
+      req.onerror = () => resolve(null);
     });
   } catch {
-    return localStorage.getItem(`gp_ward_photo_${key}`);
+    return null;
   }
 }
 
 export async function deleteWardPhoto(wardName: string): Promise<void> {
   const key = wardKey(wardName);
+  await tryDeleteFromSupabase('ward', key);
   try {
     const db = await openDB();
     const tx = db.transaction(STORE_NAME, 'readwrite');
