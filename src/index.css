@@ -1,1 +1,134 @@
 @import "tailwindcss";
+
+:root {
+  --green-50: #ecfdf5;
+  --green-100: #d1fae5;
+  --green-400: #34d399;
+  --green-500: #10b981;
+  --green-600: #059669;
+  --green-700: #047857;
+  --green-800: #065f46;
+}
+
+[class*="indigo-"],
+[class*="purple-"],
+[class*="from-indigo-"],
+[class*="via-indigo-"],
+[class*="to-purple-"],
+[class*="from-purple-"],
+[class*="to-pink-"],
+[class*="text-indigo-"],
+[class*="text-purple-"],
+[class*="border-indigo-"],
+[class*="border-purple-"],
+[class*="ring-indigo-"],
+[class*="focus:ring-indigo-"],
+[class*="focus:ring-purple-"],
+[class*="hover:text-indigo-"],
+[class*="hover:text-purple-"],
+[class*="hover:bg-indigo-"],
+[class*="hover:bg-purple-"],
+[class*="hover:from-indigo-"],
+[class*="hover:from-purple-"],
+[class*="hover:to-purple-"],
+[class*="hover:to-pink-"],
+[class*="shadow-indigo-"],
+[class*="shadow-purple-"] {
+  --tw-gradient-from: var(--green-600) !important;
+  --tw-gradient-via: var(--green-500) !important;
+  --tw-gradient-to: var(--green-700) !important;
+  --tw-ring-color: var(--green-500) !important;
+  --tw-border-color: var(--green-600) !important;
+}
+
+[class*="bg-indigo-600"],
+[class*="bg-indigo-700"],
+[class*="bg-purple-600"],
+[class*="bg-purple-700"],
+[class*="from-indigo-600"],
+[class*="via-indigo-700"],
+[class*="to-purple-700"],
+[class*="from-purple-600"],
+[class*="to-purple-600"],
+[class*="to-pink-700"],
+[class*="hover:from-indigo-700"],
+[class*="hover:to-purple-700"],
+[class*="hover:from-purple-700"],
+[class*="hover:to-pink-700"],
+[class*="bg-gradient-to-r"] {
+  background-color: var(--green-600) !important;
+  background-image: linear-gradient(to right, var(--green-600), var(--green-700)) !important;
+}
+
+[class*="text-indigo-600"],
+[class*="text-indigo-700"],
+[class*="text-purple-600"],
+[class*="text-purple-700"],
+[class*="hover:text-indigo-600"],
+[class*="hover:text-indigo-800"],
+[class*="hover:text-purple-600"],
+[class*="hover:text-purple-800"] {
+  color: var(--green-700) !important;
+}
+
+[class*="border-indigo-500"],
+[class*="border-indigo-200"],
+[class*="border-purple-200"],
+[class*="border-purple-500"],
+[class*="hover:border-indigo-400"],
+[class*="hover:border-purple-400"] {
+  border-color: var(--green-500) !important;
+}
+
+[class*="bg-indigo-50"],
+[class*="bg-purple-50"],
+[class*="hover:bg-indigo-100"],
+[class*="hover:bg-purple-100"],
+[class*="bg-indigo-100"],
+[class*="bg-purple-100"] {
+  background-color: var(--green-50) !important;
+}
+
+[class*="focus:ring-indigo-500"],
+[class*="focus:ring-purple-500"] {
+  --tw-ring-color: var(--green-500) !important;
+  box-shadow: 0 0 0 2px rgba(16, 185, 129, 0.2) !important;
+}
+
+[class*="text-indigo-100"],
+[class*="text-purple-100"] {
+  color: #dcfce7 !important;
+}
+
+[class*="bg-indigo-500/20"],
+[class*="bg-purple-500/20"] {
+  background-color: rgba(16, 185, 129, 0.2) !important;
+}
+
+[class*="text-indigo-400"],
+[class*="text-purple-400"] {
+  color: var(--green-400) !important;
+}
+
+[class*="border-indigo-100"],
+[class*="border-purple-100"] {
+  border-color: rgba(16, 185, 129, 0.2) !important;
+}
+
+[class*="bg-indigo-500"],
+[class*="bg-purple-500"],
+[class*="from-indigo-500"],
+[class*="via-indigo-500"],
+[class*="to-purple-500"] {
+  background-color: var(--green-500) !important;
+}
+
+[class*="bg-indigo-600"],
+[class*="bg-purple-600"],
+[class*="from-indigo-600"],
+[class*="via-indigo-600"],
+[class*="to-purple-600"],
+[class*="hover:from-indigo-600"],
+[class*="hover:to-purple-600"] {
+  background-image: linear-gradient(to right, var(--green-600), var(--green-700)) !important;
+}
