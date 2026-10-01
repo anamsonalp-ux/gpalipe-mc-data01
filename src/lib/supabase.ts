@@ -21,6 +21,8 @@ export interface WardRecord {
 export const DEFAULT_SUPABASE_URL = 'https://twtabchsgjgqnihbhbue.supabase.co';
 export const DEFAULT_SUPABASE_KEY = 'sb_publishable_r4HVQn0YfR8jBrzyR1OeXg_G8osAaB_';
 
+const BLOCKED_WARDS = new Set(['pinj 1', 'pinj 2', 'piro 1', 'piro 2']);
+
 export const WARD_NUMBER_MAP: Record<string, string> = {
   'kiburubox a': '1. Kiburu Box A',
   'kiburu box a': '1. Kiburu Box A',
@@ -46,10 +48,6 @@ export const WARD_NUMBER_MAP: Record<string, string> = {
   'kiburu box c': '2. Kiburu Box C',
   '2. kiburu box c': '2. Kiburu Box C',
   '2.kiburu box c': '2. Kiburu Box C',
-  'pinj 1': '3. Pinj 1',
-  'piro 1': '3. Pinj 1',
-  'pinj 2': '4. Pinj 2',
-  'piro 2': '4. Pinj 2',
   'tubiri': '5. Tubiri',
   'eskampe (tepe)': '6. Eskampe (Tepe)',
   'eskampe (tep': '6. Eskampe (Tepe)',
@@ -213,8 +211,6 @@ export function normalizeWardKey(ward: string | null | undefined): string {
 export const INITIAL_FALLBACK_WARDS = [
   '1. Kiburu Box A',
   '2. Kiburu Box C',
-  '3. Pinj 1',
-  '4. Pinj 2',
   '5. Tubiri',
   '6. Eskampe (Tepe)',
   '7. Una Kos1',
@@ -340,6 +336,10 @@ export function resolveWards(sources: (string[] | undefined | null)[]): string[]
 
       const canonical = formatWardDisplay(name).toLowerCase();
       if (deletedSet.has(canonical) || deletedSet.has(rawLower) || deletedSet.has(withoutNum)) {
+        continue;
+      }
+
+      if (BLOCKED_WARDS.has(canonical) || BLOCKED_WARDS.has(rawLower) || BLOCKED_WARDS.has(withoutNum)) {
         continue;
       }
 
