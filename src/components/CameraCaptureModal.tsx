@@ -300,12 +300,11 @@ export function CameraCaptureModal({
             </div>
           )}
 
-          {/* Hidden File / Native Camera input */}
+          {/* Hidden File / Native Camera input - Removed capture constraint to allow file browsing on Android */}
           <input
             ref={fileInputRef}
             type="file"
             accept="image/*"
-            capture="environment"
             className="hidden"
             onChange={handleFileChange}
           />
@@ -318,7 +317,7 @@ export function CameraCaptureModal({
               <button
                 type="button"
                 onClick={handleRetake}
-                className="flex-1 py-3 px-4 rounded-xl bg-slate-800 hover:bg-slate-700 text-slate-200 font-semibold text-sm flex items-center justify-center gap-2 transition-all cursor-pointer border border-slate-700"
+                className="flex-1 py-3 px-4 rounded-xl bg-slate-800 hover:bg-slate-700 text-slate-200 font-semibold text-sm flex items-center justify-center gap-2 transition-all cursor-pointer"
               >
                 <RefreshCw className="w-4 h-4" />
                 <span>Retake</span>
@@ -326,7 +325,7 @@ export function CameraCaptureModal({
               <button
                 type="button"
                 onClick={handleConfirm}
-                className="flex-1 py-3 px-4 rounded-xl bg-emerald-600 hover:bg-emerald-500 text-white font-semibold text-sm flex items-center justify-center gap-2 transition-all cursor-pointer shadow-lg shadow-emerald-900/40"
+                className="flex-1 py-3 px-4 rounded-xl bg-emerald-600 hover:bg-emerald-500 text-white font-semibold text-sm flex items-center justify-center gap-2 transition-all cursor-pointer"
               >
                 <Check className="w-4 h-4" />
                 <span>Use Photo</span>
