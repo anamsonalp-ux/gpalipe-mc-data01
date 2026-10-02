@@ -210,6 +210,16 @@ export function CameraCaptureModal({
     reader.readAsDataURL(file);
   };
 
+  // Open file picker safely (works better on Android)
+  const openFilePicker = () => {
+    if (fileInputRef.current) {
+      // Reset the input to allow selecting the same file twice
+      fileInputRef.current.value = '';
+      // Trigger the file picker
+      fileInputRef.current.click();
+    }
+  };
+
   if (!isOpen) return null;
 
   return (
@@ -255,7 +265,7 @@ export function CameraCaptureModal({
               <div className="flex flex-col gap-2 mt-4">
                 <button
                   type="button"
-                  onClick={() => fileInputRef.current?.click()}
+                  onClick={openFilePicker}
                   className="w-full py-3 px-4 bg-indigo-600 hover:bg-indigo-700 text-white rounded-xl text-xs font-bold flex items-center justify-center gap-2 cursor-pointer shadow-md"
                 >
                   <Camera className="w-4 h-4" />
@@ -299,16 +309,16 @@ export function CameraCaptureModal({
               </div>
             </div>
           )}
-
-          {/* Hidden File / Native Camera input - Removed capture constraint to allow file browsing on Android */}
-          <input
-            ref={fileInputRef}
-            type="file"
-            accept="image/*"
-            className="hidden"
-            onChange={handleFileChange}
-          />
         </div>
+
+        {/* File Input - Now positioned outside hidden divs for better Android compatibility */}
+        <input
+          ref={fileInputRef}
+          type="file"
+          accept="image/*"
+          style={{ display: 'none' }}
+          onChange={handleFileChange}
+        />
 
         {/* Action Controls Bar */}
         <div className="p-4 bg-slate-900 border-t border-slate-800 flex items-center justify-between gap-3">
@@ -336,7 +346,7 @@ export function CameraCaptureModal({
               {/* Native Device Camera / File Picker */}
               <button
                 type="button"
-                onClick={() => fileInputRef.current?.click()}
+                onClick={openFilePicker}
                 title="Open device camera or pick file"
                 className="p-3 rounded-xl bg-slate-800 hover:bg-slate-700 text-slate-300 hover:text-white border border-slate-700 transition-all cursor-pointer"
               >
