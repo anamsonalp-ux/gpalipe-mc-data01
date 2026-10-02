@@ -23,6 +23,7 @@ export function CameraCaptureModal({
 
   const videoRef = useRef<HTMLVideoElement>(null);
   const fileInputRef = useRef<HTMLInputElement>(null);
+  const cameraInputRef = useRef<HTMLInputElement>(null);
   const streamRef = useRef<MediaStream | null>(null);
   const cameraRequestRef = useRef(0);
 
@@ -210,13 +211,19 @@ export function CameraCaptureModal({
     reader.readAsDataURL(file);
   };
 
-  // Open file picker safely (works better on Android)
-  const openFilePicker = () => {
+  // Open gallery picker (for browsing existing photos)
+  const openGalleryPicker = () => {
     if (fileInputRef.current) {
-      // Reset the input to allow selecting the same file twice
       fileInputRef.current.value = '';
-      // Trigger the file picker
       fileInputRef.current.click();
+    }
+  };
+
+  // Open camera capture (for taking new photos)
+  const openCameraCapture = () => {
+    if (cameraInputRef.current) {
+      cameraInputRef.current.value = '';
+      cameraInputRef.current.click();
     }
   };
 
@@ -265,11 +272,19 @@ export function CameraCaptureModal({
               <div className="flex flex-col gap-2 mt-4">
                 <button
                   type="button"
-                  onClick={openFilePicker}
+                  onClick={openGalleryPicker}
                   className="w-full py-3 px-4 bg-indigo-600 hover:bg-indigo-700 text-white rounded-xl text-xs font-bold flex items-center justify-center gap-2 cursor-pointer shadow-md"
                 >
+                  <ImageIcon className="w-4 h-4" />
+                  Browse Gallery
+                </button>
+                <button
+                  type="button"
+                  onClick={openCameraCapture}
+                  className="w-full py-2.5 px-4 bg-slate-700 hover:bg-slate-600 text-slate-200 rounded-xl text-xs font-semibold flex items-center justify-center gap-2 cursor-pointer"
+                >
                   <Camera className="w-4 h-4" />
-                  Open Device Camera / Photos
+                  Take New Photo
                 </button>
                 <button
                   type="button"
@@ -311,11 +326,22 @@ export function CameraCaptureModal({
           )}
         </div>
 
-        {/* File Input - Now positioned outside hidden divs for better Android compatibility */}
+        {/* Hidden File Inputs */}
+        {/* Gallery picker - opens photos/gallery app */}
         <input
           ref={fileInputRef}
           type="file"
           accept="image/*"
+          style={{ display: 'none' }}
+          onChange={handleFileChange}
+        />
+        
+        {/* Camera capture - opens native camera app */}
+        <input
+          ref={cameraInputRef}
+          type="file"
+          accept="image/*"
+          capture="environment"
           style={{ display: 'none' }}
           onChange={handleFileChange}
         />
@@ -343,11 +369,11 @@ export function CameraCaptureModal({
             </>
           ) : (
             <>
-              {/* Native Device Camera / File Picker */}
+              {/* Browse Gallery - opens photos app without camera */}
               <button
                 type="button"
-                onClick={openFilePicker}
-                title="Open device camera or pick file"
+                onClick={openGalleryPicker}
+                title="Browse gallery photos"
                 className="p-3 rounded-xl bg-slate-800 hover:bg-slate-700 text-slate-300 hover:text-white border border-slate-700 transition-all cursor-pointer"
               >
                 <ImageIcon className="w-5 h-5" />
