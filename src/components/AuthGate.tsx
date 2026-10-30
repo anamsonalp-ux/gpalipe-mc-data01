@@ -1,5 +1,5 @@
 import React, { useEffect, useState } from 'react';
-import { Database, Lock, Mail, AlertCircle, CheckCircle, LogIn, KeyRound } from 'lucide-react';
+import { Database, Lock, User as UserIcon, Mail, AlertCircle, CheckCircle, LogIn, KeyRound } from 'lucide-react';
 import {
   AuthError,
   MissingIdentityError,
@@ -12,6 +12,7 @@ import {
   updateUser,
   type User,
 } from '@netlify/identity';
+import { toLoginEmail } from '../lib/username';
 
 type Mode = 'login' | 'forgot' | 'reset' | 'invite';
 
@@ -22,11 +23,11 @@ function describeError(error: unknown): string {
   if (error instanceof AuthError) {
     switch (error.status) {
       case 401:
-        return 'Invalid email or password.';
+        return 'Invalid username or password.';
       case 403:
         return 'Self sign-up is disabled. Ask an administrator to create your account.';
       case 422:
-        return 'Please check your email and password (passwords need at least 8 characters).';
+        return 'Please check your details (passwords need at least 8 characters).';
       default:
         return error.message || 'Something went wrong. Please try again.';
     }
@@ -99,7 +100,7 @@ export function AuthGate({ children }: AuthGateProps) {
     setSubmitting(true);
     try {
       if (mode === 'login') {
-        setUser(await login(email.trim(), password));
+        setUser(await login(toLoginEmail(email), password));
       } else if (mode === 'forgot') {
         await requestPasswordRecovery(email.trim());
         setNotice('If that email has an account, a password reset link is on its way.');
@@ -133,7 +134,7 @@ export function AuthGate({ children }: AuthGateProps) {
 
   const titles: Record<Mode, { title: string; subtitle: string; button: string }> = {
     login: { title: 'Sign in', subtitle: 'Access the voter database', button: 'Sign in' },
-    forgot: { title: 'Reset password', subtitle: "We'll email you a reset link", button: 'Send reset link' },
+    forgot: { title: 'Reset password', subtitle: 'For accounts that use an email address', button: 'Send reset link' },
     reset: { title: 'Set new password', subtitle: 'Enter a new password for your account', button: 'Save password' },
     invite: { title: 'Accept invitation', subtitle: 'Set a password to finish creating your account', button: 'Activate account' },
   };
@@ -173,17 +174,30 @@ export function AuthGate({ children }: AuthGateProps) {
             </div>
           )}
 
+          {mode === 'forgot' && (
+            <p className="text-xs text-slate-500">
+              Signed in with a username? Ask the administrator to reset your password.
+            </p>
+          )}
+
           {needsEmail && (
             <label className="block">
-              <span className="text-xs font-semibold text-slate-600">Email</span>
+              <span className="text-xs font-semibold text-slate-600">{mode === 'login' ? 'Username' : 'Email'}</span>
               <div className="mt-1 relative">
-                <Mail className="w-4 h-4 text-slate-400 absolute left-3 top-1/2 -translate-y-1/2" />
+                {mode === 'login' ? (
+                  <UserIcon className="w-4 h-4 text-slate-400 absolute left-3 top-1/2 -translate-y-1/2" />
+                ) : (
+                  <Mail className="w-4 h-4 text-slate-400 absolute left-3 top-1/2 -translate-y-1/2" />
+                )}
                 <input
-                  type="email"
+                  type={mode === 'login' ? 'text' : 'email'}
                   required
                   value={email}
                   onChange={(e) => setEmail(e.target.value)}
-                  autoComplete="email"
+                  autoComplete={mode === 'login' ? 'username' : 'email'}
+                  autoCapitalize="none"
+                  autoCorrect="off"
+                  spellCheck={false}
                   className="w-full pl-9 pr-3 py-2.5 rounded-lg border border-slate-300 text-sm focus:outline-none focus:ring-2 focus:ring-emerald-500"
                 />
               </div>

@@ -1,10 +1,12 @@
 import { admin, getUser, AuthError, type User } from '@netlify/identity';
+import { displayLogin, isValidUsername, normalizeUsername, USERNAME_DOMAIN } from '../../src/lib/username';
 
 const isAdmin = (user: User | null) => !!user?.roles?.includes('admin');
 
 const toPublic = (u: User) => ({
   id: u.id,
   email: u.email,
+  username: displayLogin(u.email),
   name: u.name ?? (u.userMetadata?.full_name as string | undefined),
   roles: u.roles ?? [],
   createdAt: u.createdAt,
@@ -32,21 +34,39 @@ export default async (req: Request) => {
 
     if (req.method === 'POST') {
       const body = await req.json().catch(() => null);
-      const email = typeof body?.email === 'string' ? body.email.trim() : '';
+      const username = typeof body?.username === 'string' ? normalizeUsername(body.username) : '';
       const password = typeof body?.password === 'string' ? body.password : '';
       const name = typeof body?.name === 'string' ? body.name.trim() : '';
-      if (!email || password.length < 8) {
-        return Response.json({ error: 'A valid email and a password of at least 8 characters are required.' }, { status: 422 });
+      if (!isValidUsername(username)) {
+        return Response.json(
+          { error: 'Usernames must be 3–32 characters: letters, numbers, dots, dashes or underscores.' },
+          { status: 422 },
+        );
+      }
+      if (password.length < 8) {
+        return Response.json({ error: 'Passwords need at least 8 characters.' }, { status: 422 });
       }
       const created = await admin.createUser({
-        email,
+        email: `${username}@${USERNAME_DOMAIN}`,
         password,
         data: {
-          user_metadata: name ? { full_name: name } : {},
+          user_metadata: { username, ...(name ? { full_name: name } : {}) },
           app_metadata: { roles: body?.admin === true ? ['admin'] : ['user'] },
         },
       });
       return Response.json({ user: toPublic(created) }, { status: 201 });
+    }
+
+    if (req.method === 'PATCH') {
+      const body = await req.json().catch(() => null);
+      const id = typeof body?.id === 'string' ? body.id : '';
+      const password = typeof body?.password === 'string' ? body.password : '';
+      if (!id) return Response.json({ error: 'Missing user id' }, { status: 400 });
+      if (password.length < 8) {
+        return Response.json({ error: 'Passwords need at least 8 characters.' }, { status: 422 });
+      }
+      const updated = await admin.updateUser(id, { password });
+      return Response.json({ user: toPublic(updated) });
     }
 
     if (req.method === 'DELETE') {

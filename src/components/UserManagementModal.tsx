@@ -1,9 +1,11 @@
 import React, { useEffect, useState } from 'react';
-import { X, UserPlus, Trash2, AlertCircle, CheckCircle, Shield, RefreshCw } from 'lucide-react';
+import { X, UserPlus, Trash2, AlertCircle, CheckCircle, Shield, RefreshCw, KeyRound } from 'lucide-react';
+import { normalizeUsername } from '../lib/username';
 
 interface ManagedUser {
   id: string;
   email?: string;
+  username?: string;
   name?: string;
   roles: string[];
   createdAt?: string;
@@ -29,7 +31,7 @@ export function UserManagementModal({ currentUserId, onClose }: UserManagementMo
   const [notice, setNotice] = useState('');
 
   const [name, setName] = useState('');
-  const [email, setEmail] = useState('');
+  const [username, setUsername] = useState('');
   const [password, setPassword] = useState('');
   const [makeAdmin, setMakeAdmin] = useState(false);
   const [submitting, setSubmitting] = useState(false);
@@ -62,12 +64,12 @@ export function UserManagementModal({ currentUserId, onClose }: UserManagementMo
         method: 'POST',
         credentials: 'same-origin',
         headers: { 'Content-Type': 'application/json' },
-        body: JSON.stringify({ name, email, password, admin: makeAdmin }),
+        body: JSON.stringify({ name, username, password, admin: makeAdmin }),
       });
       if (!res.ok) throw new Error(await readError(res));
-      setNotice(`Account created for ${email.trim()}. Share the password with them securely.`);
+      setNotice(`Account created for ${normalizeUsername(username)}. Share the username and password with them securely.`);
       setName('');
-      setEmail('');
+      setUsername('');
       setPassword('');
       setMakeAdmin(false);
       await loadUsers();
@@ -79,7 +81,7 @@ export function UserManagementModal({ currentUserId, onClose }: UserManagementMo
   };
 
   const handleDelete = async (user: ManagedUser) => {
-    if (!window.confirm(`Delete the account for ${user.email}? They will no longer be able to sign in.`)) return;
+    if (!window.confirm(`Delete the account for ${user.username || user.email}? They will no longer be able to sign in.`)) return;
     setError('');
     setNotice('');
     try {
@@ -88,10 +90,30 @@ export function UserManagementModal({ currentUserId, onClose }: UserManagementMo
         credentials: 'same-origin',
       });
       if (!res.ok) throw new Error(await readError(res));
-      setNotice(`Deleted ${user.email}.`);
+      setNotice(`Deleted ${user.username || user.email}.`);
       setUsers((prev) => prev.filter((u) => u.id !== user.id));
     } catch (err) {
       setError(err instanceof Error ? err.message : 'Could not delete user.');
+    }
+  };
+
+  const handleResetPassword = async (user: ManagedUser) => {
+    const label = user.username || user.email;
+    const newPassword = window.prompt(`Enter a new password for ${label} (min. 8 characters):`);
+    if (newPassword === null) return;
+    setError('');
+    setNotice('');
+    try {
+      const res = await fetch(API, {
+        method: 'PATCH',
+        credentials: 'same-origin',
+        headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify({ id: user.id, password: newPassword }),
+      });
+      if (!res.ok) throw new Error(await readError(res));
+      setNotice(`Password updated for ${label}. Share it with them securely.`);
+    } catch (err) {
+      setError(err instanceof Error ? err.message : 'Could not reset password.');
     }
   };
 
@@ -133,8 +155,20 @@ export function UserManagementModal({ currentUserId, onClose }: UserManagementMo
                 <input type="text" value={name} onChange={(e) => setName(e.target.value)} className={`mt-1 ${inputClass}`} />
               </label>
               <label className="block">
-                <span className="text-xs font-semibold text-slate-600">Email</span>
-                <input type="email" required value={email} onChange={(e) => setEmail(e.target.value)} className={`mt-1 ${inputClass}`} />
+                <span className="text-xs font-semibold text-slate-600">Username</span>
+                <input
+                  type="text"
+                  required
+                  value={username}
+                  onChange={(e) => setUsername(e.target.value)}
+                  pattern="[A-Za-z0-9][A-Za-z0-9._\-]{2,31}"
+                  title="3–32 characters: letters, numbers, dots, dashes or underscores"
+                  autoCapitalize="none"
+                  autoCorrect="off"
+                  spellCheck={false}
+                  placeholder="e.g. jsmith"
+                  className={`mt-1 ${inputClass}`}
+                />
               </label>
               <label className="block sm:col-span-2">
                 <span className="text-xs font-semibold text-slate-600">Password (min. 8 characters)</span>
@@ -176,16 +210,24 @@ export function UserManagementModal({ currentUserId, onClose }: UserManagementMo
                 <li key={u.id} className="flex items-center justify-between gap-3 p-3">
                   <div className="min-w-0">
                     <p className="text-sm font-semibold text-slate-900 truncate flex items-center gap-1.5">
-                      {u.name || u.email}
+                      {u.name || u.username || u.email}
                       {u.roles.includes('admin') && (
                         <span className="inline-flex items-center gap-1 text-[10px] uppercase font-bold px-1.5 py-0.5 rounded bg-amber-100 text-amber-800">
                           <Shield className="w-3 h-3" /> Admin
                         </span>
                       )}
                     </p>
-                    {u.name && <p className="text-xs text-slate-500 truncate">{u.email}</p>}
+                    {u.name && <p className="text-xs text-slate-500 truncate">{u.username || u.email}</p>}
                   </div>
-                  {u.id !== currentUserId && (
+                  <div className="flex items-center gap-1 shrink-0">
+                    <button
+                      onClick={() => handleResetPassword(u)}
+                      className="p-1.5 rounded-lg hover:bg-slate-100 text-slate-600 cursor-pointer"
+                      title="Reset password"
+                    >
+                      <KeyRound className="w-4 h-4" />
+                    </button>
+                    {u.id !== currentUserId && (
                     <button
                       onClick={() => handleDelete(u)}
                       className="p-1.5 rounded-lg hover:bg-rose-50 text-rose-600 cursor-pointer"
@@ -193,7 +235,8 @@ export function UserManagementModal({ currentUserId, onClose }: UserManagementMo
                     >
                       <Trash2 className="w-4 h-4" />
                     </button>
-                  )}
+                    )}
+                  </div>
                 </li>
               ))}
             </ul>
