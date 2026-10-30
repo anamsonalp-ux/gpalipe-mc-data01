@@ -1,11 +1,18 @@
-import { createSupabaseInstance, getStoredSupabaseConfig } from './supabase';
+import type { SupabaseClient, RealtimeChannel } from '@supabase/supabase-js';
 
-// IndexedDB photo storage for voter photos
+// Voter and ward photos are stored centrally (see netlify/functions/photos.mts)
+// so every signed-in device sees the same pictures. IndexedDB keeps a local
+// copy of photos that could not be uploaded yet (e.g. while offline) and they
+// are retried automatically. Other devices are told about changes instantly via
+// a Supabase broadcast channel, with periodic polling as a fallback.
 
 const DB_NAME = 'gp_voter_photos_db';
 const STORE_NAME = 'photos';
 const DB_VERSION = 1;
-const SUPABASE_BUCKET = 'gp-photos';
+const API = '/api/photos';
+const PENDING_KEY = 'gp_photo_pending';
+const MIGRATED_KEY = 'gp_photos_migrated_v1';
+const POLL_INTERVAL_MS = 15000;
 
 function openDB(): Promise<IDBDatabase> {
   return new Promise((resolve, reject) => {
@@ -21,128 +28,301 @@ function openDB(): Promise<IDBDatabase> {
   });
 }
 
-function dataUrlToBlob(dataUrl: string): Blob {
-  const [header, payload] = dataUrl.split(',');
-  const mimeMatch = header.match(/data:(.*?);base64/);
-  const mime = mimeMatch ? mimeMatch[1] : 'image/jpeg';
-  const binary = atob(payload);
-  const bytes = new Uint8Array(binary.length);
-  for (let i = 0; i < binary.length; i += 1) {
-    bytes[i] = binary.charCodeAt(i);
-  }
-  return new Blob([bytes], { type: mime });
-}
-
-function safeSupabaseStorageKey(value: string | number): string {
-  return String(value).trim().replace(/[^a-zA-Z0-9._/-]+/g, '_');
-}
-
-async function tryUploadToSupabase(kind: 'voter' | 'ward', key: string | number, photoDataUrl: string): Promise<string | null> {
+async function idbGet(key: string): Promise<string | null> {
   try {
-    const { url, key: anonKey } = getStoredSupabaseConfig();
-    if (!url || !anonKey) return null;
-
-    const client = createSupabaseInstance(url, anonKey);
-    const storagePath = `${kind}/${safeSupabaseStorageKey(key)}.jpg`;
-    const blob = dataUrlToBlob(photoDataUrl);
-    const { error } = await client.storage.from(SUPABASE_BUCKET).upload(storagePath, blob, {
-      cacheControl: '3600',
-      upsert: true,
-      contentType: 'image/jpeg',
+    const db = await openDB();
+    return await new Promise((resolve) => {
+      const req = db.transaction(STORE_NAME, 'readonly').objectStore(STORE_NAME).get(key);
+      req.onsuccess = () => resolve(typeof req.result === 'string' ? req.result : null);
+      req.onerror = () => resolve(null);
     });
-
-    if (error) {
-      return null;
-    }
-
-    const { data } = client.storage.from(SUPABASE_BUCKET).getPublicUrl(storagePath);
-    return data?.publicUrl || null;
   } catch {
     return null;
   }
 }
 
-async function tryDeleteFromSupabase(kind: 'voter' | 'ward', key: string | number): Promise<void> {
-  try {
-    const { url, key: anonKey } = getStoredSupabaseConfig();
-    if (!url || !anonKey) return;
-
-    const client = createSupabaseInstance(url, anonKey);
-    const storagePath = `${kind}/${safeSupabaseStorageKey(key)}.jpg`;
-    await client.storage.from(SUPABASE_BUCKET).remove([storagePath]);
-  } catch {
-    // ignore delete failures; local browser storage cleanup is still handled below
-  }
-}
-
-export async function saveVoterPhoto(voterKey: string | number, photoDataUrl: string): Promise<void> {
-  try {
-    const publicUrl = await tryUploadToSupabase('voter', voterKey, photoDataUrl);
-    if (publicUrl) {
-      localStorage.setItem(`gp_photo_${voterKey}`, publicUrl);
-    } else {
-      localStorage.setItem(`gp_photo_${voterKey}`, photoDataUrl);
-    }
-  } catch {
-    localStorage.setItem(`gp_photo_${voterKey}`, photoDataUrl);
-  }
-
+async function idbPut(key: string, value: string): Promise<void> {
   try {
     const db = await openDB();
-    return new Promise((resolve, reject) => {
-      const tx = db.transaction(STORE_NAME, 'readwrite');
-      const store = tx.objectStore(STORE_NAME);
-      const req = store.put(photoDataUrl, String(voterKey));
+    await new Promise<void>((resolve, reject) => {
+      const req = db.transaction(STORE_NAME, 'readwrite').objectStore(STORE_NAME).put(value, key);
       req.onsuccess = () => resolve();
       req.onerror = () => reject(req.error);
     });
   } catch (err) {
     console.warn('Could not save photo to IndexedDB:', err);
+  }
+}
+
+async function idbDelete(key: string): Promise<void> {
+  try {
+    const db = await openDB();
+    db.transaction(STORE_NAME, 'readwrite').objectStore(STORE_NAME).delete(key);
+  } catch {
+    // ignore
+  }
+}
+
+async function photoToBlob(photo: string): Promise<Blob> {
+  const res = await fetch(photo);
+  if (!res.ok) throw new Error(`Could not read photo (${res.status})`);
+  return res.blob();
+}
+
+function isDummyPhoto(photo: string): boolean {
+  return photo.startsWith('data:image/svg+xml');
+}
+
+function isStoredPhotoUrl(photo: string): boolean {
+  return photo.startsWith(`${API}/`);
+}
+
+function safeId(value: string | number): string {
+  return String(value).trim().replace(/[^a-zA-Z0-9._-]+/g, '_').slice(0, 200) || '_';
+}
+
+function voterPhotoKey(voterKey: string | number): string {
+  return `voter/${safeId(voterKey)}`;
+}
+
+function wardKey(wardName: string): string {
+  return 'ward_' + wardName.trim().toLowerCase().replace(/\s+/g, '_');
+}
+
+function wardPhotoKey(wardName: string): string {
+  return `ward/${safeId(wardKey(wardName))}`;
+}
+
+// ─── Shared photo index & change notifications ───────────────────────────────
+
+let manifest: Record<string, string> = {};
+let manifestLoaded = false;
+let manifestRequest: Promise<boolean> | null = null;
+const listeners = new Set<() => void>();
+let syncChannel: RealtimeChannel | null = null;
+
+function notifyPhotosChanged() {
+  listeners.forEach((cb) => cb());
+}
+
+/** Registers a callback fired whenever any photo is added, replaced or removed. */
+export function onPhotosChanged(cb: () => void): () => void {
+  listeners.add(cb);
+  return () => {
+    listeners.delete(cb);
+  };
+}
+
+function getPending(): string[] {
+  try {
+    return JSON.parse(localStorage.getItem(PENDING_KEY) || '[]');
+  } catch {
+    return [];
+  }
+}
+
+function setPending(keys: string[]) {
+  try {
+    localStorage.setItem(PENDING_KEY, JSON.stringify([...new Set(keys)]));
+  } catch {
+    // ignore
+  }
+}
+
+/** Fetches the latest list of stored photos. Returns true if anything changed. */
+export function refreshPhotoManifest(): Promise<boolean> {
+  if (manifestRequest) return manifestRequest;
+  manifestRequest = (async () => {
     try {
-      localStorage.setItem(`gp_photo_${voterKey}`, photoDataUrl);
+      const res = await fetch(API, { credentials: 'same-origin', cache: 'no-store' });
+      if (!res.ok) return false;
+      const { photos } = (await res.json()) as { photos: Record<string, string> };
+      const next = photos || {};
+      const changed =
+        !manifestLoaded ||
+        Object.keys(next).length !== Object.keys(manifest).length ||
+        Object.entries(next).some(([k, v]) => manifest[k] !== v);
+      manifest = next;
+      manifestLoaded = true;
+      if (changed) notifyPhotosChanged();
+      return changed;
     } catch {
-      // LocalStorage quota might be exceeded
+      return false;
+    } finally {
+      manifestRequest = null;
+    }
+  })();
+  return manifestRequest;
+}
+
+async function ensureManifest() {
+  if (!manifestLoaded) await refreshPhotoManifest();
+}
+
+function storedPhotoUrl(key: string): string | null {
+  const etag = manifest[key];
+  return etag ? `${API}/${key}?v=${encodeURIComponent(etag)}` : null;
+}
+
+function broadcastPhotoChange(key: string) {
+  syncChannel?.send({ type: 'broadcast', event: 'photo-changed', payload: { key } }).catch(() => undefined);
+}
+
+async function uploadPhoto(key: string, photo: string): Promise<boolean> {
+  try {
+    const blob = await photoToBlob(photo);
+    const res = await fetch(`${API}/${key}`, {
+      method: 'PUT',
+      credentials: 'same-origin',
+      headers: { 'Content-Type': blob.type || 'image/jpeg' },
+      body: blob,
+    });
+    if (!res.ok) return false;
+    const { etag } = (await res.json()) as { etag: string };
+    manifest = { ...manifest, [key]: etag };
+    setPending(getPending().filter((k) => k !== key));
+    await idbDelete(key);
+    notifyPhotosChanged();
+    broadcastPhotoChange(key);
+    return true;
+  } catch {
+    return false;
+  }
+}
+
+async function removePhoto(key: string): Promise<void> {
+  setPending(getPending().filter((k) => k !== key));
+  await idbDelete(key);
+  try {
+    const res = await fetch(`${API}/${key}`, { method: 'DELETE', credentials: 'same-origin' });
+    if (res.ok) {
+      const { [key]: _removed, ...rest } = manifest;
+      manifest = rest;
+      notifyPhotosChanged();
+      broadcastPhotoChange(key);
+    }
+  } catch {
+    // ignore; the photo will still be listed by the server
+  }
+}
+
+/** Retries uploads that failed earlier (e.g. taken while offline). */
+export async function flushPendingPhotos(): Promise<void> {
+  for (const key of getPending()) {
+    const photo = await idbGet(key);
+    if (!photo) {
+      setPending(getPending().filter((k) => k !== key));
+      continue;
+    }
+    if (await uploadPhoto(key, photo)) continue;
+    if (!navigator.onLine) break;
+    // Remote links that can no longer be fetched will never succeed; drop them.
+    if (!photo.startsWith('data:')) {
+      setPending(getPending().filter((k) => k !== key));
+      await idbDelete(key);
     }
   }
 }
 
-export async function getVoterPhoto(voterKey: string | number): Promise<string | null> {
-  const localValue = localStorage.getItem(`gp_photo_${voterKey}`);
-  if (localValue) return localValue;
-
-  try {
-    const db = await openDB();
-    return new Promise((resolve) => {
-      const tx = db.transaction(STORE_NAME, 'readonly');
-      const store = tx.objectStore(STORE_NAME);
-      const req = store.get(String(voterKey));
-      req.onsuccess = () => {
-        if (req.result) {
-          resolve(req.result);
-        } else {
-          resolve(null);
-        }
-      };
-      req.onerror = () => {
-        resolve(null);
-      };
-    });
-  } catch {
-    return null;
+// Photos saved by older versions of the app only lived on the device that took
+// them. Queue them once for upload so they become visible everywhere.
+async function migrateLegacyPhotos(): Promise<void> {
+  if (localStorage.getItem(MIGRATED_KEY)) return;
+  const pending = getPending();
+  // [new key, legacy localStorage name, legacy IndexedDB key]
+  const legacy: Array<[string, string, string]> = [];
+  for (let i = 0; i < localStorage.length; i++) {
+    const name = localStorage.key(i) || '';
+    if (name.startsWith('gp_photo_') && name !== PENDING_KEY) {
+      const id = name.slice('gp_photo_'.length);
+      legacy.push([voterPhotoKey(id), name, id]);
+    } else if (name.startsWith('gp_ward_photo_')) {
+      const id = name.slice('gp_ward_photo_'.length);
+      legacy.push([`ward/${safeId(id)}`, name, id]);
+    }
   }
+  for (const [key, name, idbKey] of legacy) {
+    const value = (await idbGet(idbKey)) || localStorage.getItem(name);
+    if (value && !isDummyPhoto(value) && !manifest[key]) {
+      await idbPut(key, value);
+      pending.push(key);
+    }
+    localStorage.removeItem(name);
+  }
+  setPending(pending);
+  localStorage.setItem(MIGRATED_KEY, '1');
+}
+
+/**
+ * Keeps photos in sync across devices: listens for broadcast change events,
+ * polls as a fallback, refreshes when the tab regains focus and retries
+ * pending uploads. Returns a cleanup function.
+ */
+export function startPhotoSync(client: SupabaseClient): () => void {
+  const channel = client
+    .channel('photo-sync')
+    .on('broadcast', { event: 'photo-changed' }, () => {
+      refreshPhotoManifest();
+    })
+    .subscribe();
+  syncChannel = channel;
+
+  const tick = async () => {
+    await refreshPhotoManifest();
+    if (manifestLoaded) {
+      await migrateLegacyPhotos();
+      await flushPendingPhotos();
+    }
+  };
+  const onVisible = () => {
+    if (document.visibilityState === 'visible') tick();
+  };
+
+  tick();
+  const interval = window.setInterval(tick, POLL_INTERVAL_MS);
+  document.addEventListener('visibilitychange', onVisible);
+  window.addEventListener('online', tick);
+
+  return () => {
+    window.clearInterval(interval);
+    document.removeEventListener('visibilitychange', onVisible);
+    window.removeEventListener('online', tick);
+    if (syncChannel === channel) syncChannel = null;
+    client.removeChannel(channel);
+  };
+}
+
+async function savePhoto(key: string, photo: string): Promise<boolean> {
+  // Generated placeholder portraits are recreated on demand, and URLs that
+  // already point at stored photos don't need uploading again.
+  if (isDummyPhoto(photo) || isStoredPhotoUrl(photo)) return true;
+  await idbPut(key, photo);
+  setPending([...getPending(), key]);
+  return uploadPhoto(key, photo);
+}
+
+async function getPhoto(key: string): Promise<string | null> {
+  await ensureManifest();
+  const url = storedPhotoUrl(key);
+  if (url) return url;
+  // Not uploaded yet (or offline): fall back to the copy kept on this device.
+  if (getPending().includes(key) || !manifestLoaded) return idbGet(key);
+  return null;
+}
+
+/** Saves a voter photo. Resolves to false if it is only stored on this device for now. */
+export async function saveVoterPhoto(voterKey: string | number, photoDataUrl: string): Promise<boolean> {
+  return savePhoto(voterPhotoKey(voterKey), photoDataUrl);
+}
+
+export async function getVoterPhoto(voterKey: string | number): Promise<string | null> {
+  return getPhoto(voterPhotoKey(voterKey));
 }
 
 export async function deleteVoterPhoto(voterKey: string | number): Promise<void> {
-  await tryDeleteFromSupabase('voter', voterKey);
-  try {
-    const db = await openDB();
-    const tx = db.transaction(STORE_NAME, 'readwrite');
-    const store = tx.objectStore(STORE_NAME);
-    store.delete(String(voterKey));
-    localStorage.removeItem(`gp_photo_${voterKey}`);
-  } catch {
-    localStorage.removeItem(`gp_photo_${voterKey}`);
-  }
+  const key = voterPhotoKey(voterKey);
+  if (manifest[key] || !manifestLoaded) await removePhoto(key);
+  else await idbDelete(key);
 }
 
 // Compress image to ~300x300 JPEG to keep performance fast
@@ -302,68 +482,20 @@ export function generateDummyVoterPhoto(id: number | string, name?: string, _gen
 }
 
 // ─── Ward Photo Storage ───────────────────────────────────────────────────────
-// Uses the same IndexedDB store, but with a "ward_" prefix on the key so ward
-// photos never collide with voter photos.
 
-function wardKey(wardName: string): string {
-  return 'ward_' + wardName.trim().toLowerCase().replace(/\s+/g, '_');
-}
-
-export async function saveWardPhoto(wardName: string, photoDataUrl: string): Promise<void> {
-  const key = wardKey(wardName);
-  try {
-    const publicUrl = await tryUploadToSupabase('ward', key, photoDataUrl);
-    if (publicUrl) {
-      localStorage.setItem(`gp_ward_photo_${key}`, publicUrl);
-    } else {
-      localStorage.setItem(`gp_ward_photo_${key}`, photoDataUrl);
-    }
-  } catch {
-    localStorage.setItem(`gp_ward_photo_${key}`, photoDataUrl);
-  }
-
-  try {
-    const db = await openDB();
-    return new Promise((resolve, reject) => {
-      const tx = db.transaction(STORE_NAME, 'readwrite');
-      const store = tx.objectStore(STORE_NAME);
-      const req = store.put(photoDataUrl, key);
-      req.onsuccess = () => resolve();
-      req.onerror = () => reject(req.error);
-    });
-  } catch {
-    try { localStorage.setItem(`gp_ward_photo_${key}`, photoDataUrl); } catch { /* quota */ }
-  }
+/** Saves a ward photo. Resolves to false if it is only stored on this device for now. */
+export async function saveWardPhoto(wardName: string, photoDataUrl: string): Promise<boolean> {
+  return savePhoto(wardPhotoKey(wardName), photoDataUrl);
 }
 
 export async function getWardPhoto(wardName: string): Promise<string | null> {
-  const key = wardKey(wardName);
-  const localValue = localStorage.getItem(`gp_ward_photo_${key}`);
-  if (localValue) return localValue;
-
-  try {
-    const db = await openDB();
-    return new Promise((resolve) => {
-      const tx = db.transaction(STORE_NAME, 'readonly');
-      const store = tx.objectStore(STORE_NAME);
-      const req = store.get(key);
-      req.onsuccess = () => resolve(req.result ?? null);
-      req.onerror = () => resolve(null);
-    });
-  } catch {
-    return null;
-  }
+  return getPhoto(wardPhotoKey(wardName));
 }
 
 export async function deleteWardPhoto(wardName: string): Promise<void> {
-  const key = wardKey(wardName);
-  await tryDeleteFromSupabase('ward', key);
-  try {
-    const db = await openDB();
-    const tx = db.transaction(STORE_NAME, 'readwrite');
-    tx.objectStore(STORE_NAME).delete(key);
-  } catch { /* ignore */ }
-  localStorage.removeItem(`gp_ward_photo_${key}`);
+  const key = wardPhotoKey(wardName);
+  if (manifest[key] || !manifestLoaded) await removePhoto(key);
+  else await idbDelete(key);
 }
 
 /**
