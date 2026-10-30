@@ -49,6 +49,7 @@ import { CameraCaptureModal } from './components/CameraCaptureModal';
 import { AddWardModal } from './components/AddWardModal';
 import { WardStatisticsModal } from './components/WardStatisticsModal';
 import { UserManagementModal } from './components/UserManagementModal';
+import { displayLogin } from './lib/username';
 import { saveVoterPhoto, getVoterPhoto, deleteVoterPhoto, generateDummyVoterPhoto, compressImage, saveWardPhoto, getWardPhoto } from './lib/photoStorage';
 
 interface LogEntry {
@@ -932,8 +933,8 @@ export default function App({ user }: { user: IdentityUser }) {
               </button>
             )}
 
-            <span className="hidden sm:inline text-xs text-slate-400 max-w-[180px] truncate" title={user.email}>
-              {user.name || user.email}
+            <span className="hidden sm:inline text-xs text-slate-400 max-w-[180px] truncate" title={displayLogin(user.email)}>
+              {user.name || displayLogin(user.email)}
             </span>
             <button
               onClick={() => logout()}
