@@ -1,6 +1,7 @@
 import { createSupabaseInstance, getStoredSupabaseConfig } from './supabase';
 
-// IndexedDB photo storage for voter photos
+// Photo storage for voter and ward photos: uploaded to the site's Netlify Blobs
+// storage (and Supabase when configured), with an IndexedDB copy on this device.
 
 const DB_NAME = 'gp_voter_photos_db';
 const STORE_NAME = 'photos';
@@ -62,6 +63,53 @@ async function tryUploadToSupabase(kind: 'voter' | 'ward', key: string | number,
   }
 }
 
+function netlifyPhotoPath(kind: 'voter' | 'ward', key: string | number): string {
+  return `/api/photos/${kind}/${encodeURIComponent(safeSupabaseStorageKey(key))}`;
+}
+
+// Uploads the photo to the site's own storage (Netlify Blobs) so it persists
+// across devices and browsers. Returns a cache-busted URL to the stored photo.
+async function tryUploadToNetlify(kind: 'voter' | 'ward', key: string | number, photoDataUrl: string): Promise<string | null> {
+  try {
+    const blob = dataUrlToBlob(photoDataUrl);
+    const res = await fetch(netlifyPhotoPath(kind, key), {
+      method: 'PUT',
+      headers: { 'Content-Type': blob.type || 'image/jpeg' },
+      body: blob,
+    });
+    if (!res.ok) return null;
+    return `${netlifyPhotoPath(kind, key)}?v=${Date.now()}`;
+  } catch {
+    return null;
+  }
+}
+
+async function tryGetFromNetlify(kind: 'voter' | 'ward', key: string | number): Promise<string | null> {
+  try {
+    const res = await fetch(netlifyPhotoPath(kind, key), { method: 'HEAD', cache: 'no-store' });
+    if (!res.ok || !(res.headers.get('content-type') || '').startsWith('image/')) return null;
+    return `${netlifyPhotoPath(kind, key)}?v=${encodeURIComponent(res.headers.get('etag') || Date.now())}`;
+  } catch {
+    return null;
+  }
+}
+
+async function tryDeleteFromNetlify(kind: 'voter' | 'ward', key: string | number): Promise<void> {
+  try {
+    await fetch(netlifyPhotoPath(kind, key), { method: 'DELETE' });
+  } catch {
+    // ignore delete failures; local browser storage cleanup is still handled below
+  }
+}
+
+async function uploadPhoto(kind: 'voter' | 'ward', key: string | number, photoDataUrl: string): Promise<string | null> {
+  const [netlifyUrl, supabaseUrl] = await Promise.all([
+    tryUploadToNetlify(kind, key, photoDataUrl),
+    tryUploadToSupabase(kind, key, photoDataUrl),
+  ]);
+  return netlifyUrl || supabaseUrl;
+}
+
 async function tryDeleteFromSupabase(kind: 'voter' | 'ward', key: string | number): Promise<void> {
   try {
     const { url, key: anonKey } = getStoredSupabaseConfig();
@@ -77,7 +125,7 @@ async function tryDeleteFromSupabase(kind: 'voter' | 'ward', key: string | numbe
 
 export async function saveVoterPhoto(voterKey: string | number, photoDataUrl: string): Promise<void> {
   try {
-    const publicUrl = await tryUploadToSupabase('voter', voterKey, photoDataUrl);
+    const publicUrl = await uploadPhoto('voter', voterKey, photoDataUrl);
     if (publicUrl) {
       localStorage.setItem(`gp_photo_${voterKey}`, publicUrl);
     } else {
@@ -110,30 +158,31 @@ export async function getVoterPhoto(voterKey: string | number): Promise<string |
   const localValue = localStorage.getItem(`gp_photo_${voterKey}`);
   if (localValue) return localValue;
 
+  let cached: string | null = null;
   try {
     const db = await openDB();
-    return new Promise((resolve) => {
+    cached = await new Promise<string | null>((resolve) => {
       const tx = db.transaction(STORE_NAME, 'readonly');
       const store = tx.objectStore(STORE_NAME);
       const req = store.get(String(voterKey));
-      req.onsuccess = () => {
-        if (req.result) {
-          resolve(req.result);
-        } else {
-          resolve(null);
-        }
-      };
-      req.onerror = () => {
-        resolve(null);
-      };
+      req.onsuccess = () => resolve(req.result ?? null);
+      req.onerror = () => resolve(null);
     });
   } catch {
-    return null;
+    cached = null;
   }
+  if (cached) return cached;
+
+  // Not on this device yet — load it from the site's photo storage
+  const remoteUrl = await tryGetFromNetlify('voter', voterKey);
+  if (remoteUrl) {
+    try { localStorage.setItem(`gp_photo_${voterKey}`, remoteUrl); } catch { /* quota */ }
+  }
+  return remoteUrl;
 }
 
 export async function deleteVoterPhoto(voterKey: string | number): Promise<void> {
-  await tryDeleteFromSupabase('voter', voterKey);
+  await Promise.all([tryDeleteFromNetlify('voter', voterKey), tryDeleteFromSupabase('voter', voterKey)]);
   try {
     const db = await openDB();
     const tx = db.transaction(STORE_NAME, 'readwrite');
@@ -312,7 +361,7 @@ function wardKey(wardName: string): string {
 export async function saveWardPhoto(wardName: string, photoDataUrl: string): Promise<void> {
   const key = wardKey(wardName);
   try {
-    const publicUrl = await tryUploadToSupabase('ward', key, photoDataUrl);
+    const publicUrl = await uploadPhoto('ward', key, photoDataUrl);
     if (publicUrl) {
       localStorage.setItem(`gp_ward_photo_${key}`, publicUrl);
     } else {
@@ -341,9 +390,10 @@ export async function getWardPhoto(wardName: string): Promise<string | null> {
   const localValue = localStorage.getItem(`gp_ward_photo_${key}`);
   if (localValue) return localValue;
 
+  let cached: string | null = null;
   try {
     const db = await openDB();
-    return new Promise((resolve) => {
+    cached = await new Promise<string | null>((resolve) => {
       const tx = db.transaction(STORE_NAME, 'readonly');
       const store = tx.objectStore(STORE_NAME);
       const req = store.get(key);
@@ -351,13 +401,21 @@ export async function getWardPhoto(wardName: string): Promise<string | null> {
       req.onerror = () => resolve(null);
     });
   } catch {
-    return null;
+    cached = null;
   }
+  if (cached) return cached;
+
+  // Not on this device yet — load it from the site's photo storage
+  const remoteUrl = await tryGetFromNetlify('ward', key);
+  if (remoteUrl) {
+    try { localStorage.setItem(`gp_ward_photo_${key}`, remoteUrl); } catch { /* quota */ }
+  }
+  return remoteUrl;
 }
 
 export async function deleteWardPhoto(wardName: string): Promise<void> {
   const key = wardKey(wardName);
-  await tryDeleteFromSupabase('ward', key);
+  await Promise.all([tryDeleteFromNetlify('ward', key), tryDeleteFromSupabase('ward', key)]);
   try {
     const db = await openDB();
     const tx = db.transaction(STORE_NAME, 'readwrite');
