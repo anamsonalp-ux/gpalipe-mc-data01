@@ -50,7 +50,7 @@ import { AddWardModal } from './components/AddWardModal';
 import { WardStatisticsModal } from './components/WardStatisticsModal';
 import { UserManagementModal } from './components/UserManagementModal';
 import { displayLogin } from './lib/username';
-import { saveVoterPhoto, getVoterPhoto, deleteVoterPhoto, generateDummyVoterPhoto, compressImage, saveWardPhoto, getWardPhoto } from './lib/photoStorage';
+import { saveVoterPhoto, getVoterPhoto, deleteVoterPhoto, generateDummyVoterPhoto, compressImage, saveWardPhoto, getWardPhoto, startPhotoSync, onPhotosChanged } from './lib/photoStorage';
 
 interface LogEntry {
   id: string;
@@ -113,6 +113,7 @@ export default function App({ user }: { user: IdentityUser }) {
   });
 
   const [photosMap, setPhotosMap] = useState<Record<string, string>>({});
+  const votersRef = useRef<Voter[]>([]);
   const [loading, setLoading] = useState(true);
   const [syncStatus, setSyncStatus] = useState<'connecting' | 'ready' | 'syncing' | 'error'>('connecting');
   const [lastSyncTime, setLastSyncTime] = useState<string>('');
@@ -202,6 +203,7 @@ export default function App({ user }: { user: IdentityUser }) {
 
   // Load Photos from Storage & Auto-Generate Dummy Photos for all voters without photos
   const loadPhotosForVoters = async (voterList: Voter[]) => {
+    votersRef.current = voterList;
     const map: Record<string, string> = {};
     for (const v of voterList) {
       if (v.id) {
@@ -230,9 +232,10 @@ export default function App({ user }: { user: IdentityUser }) {
       let savedCount = 0;
       for (const v of voters) {
         if (v.id) {
-          const dummyPic = generateDummyVoterPhoto(v.id, v.full_name);
-          newMap[String(v.id)] = dummyPic;
-          await saveVoterPhoto(v.id, dummyPic);
+          const existing = newMap[String(v.id)];
+          // Never replace a real photo with a generated placeholder.
+          if (existing && !existing.startsWith('data:image/svg+xml')) continue;
+          newMap[String(v.id)] = generateDummyVoterPhoto(v.id, v.full_name);
           savedCount++;
         }
       }
@@ -503,6 +506,18 @@ export default function App({ user }: { user: IdentityUser }) {
     };
   }, [supabaseClient]);
 
+  // Real-time photo sync across devices
+  useEffect(() => {
+    const stopSync = startPhotoSync(supabaseClient);
+    const unsubscribe = onPhotosChanged(() => {
+      loadPhotosForVoters(votersRef.current);
+    });
+    return () => {
+      unsubscribe();
+      stopSync();
+    };
+  }, [supabaseClient]);
+
   // Filtered Voters
   const filteredVoters = useMemo(() => {
     const selectedWardKey = normalizeWardKey(selectedWard);
@@ -617,13 +632,23 @@ export default function App({ user }: { user: IdentityUser }) {
       addLog('📸 Photo attached to ward profile', 'success');
       setIsWardFormCamera(false);
     } else if (cameraTargetWard) {
-      await saveWardPhoto(cameraTargetWard, photoDataUrl);
-      addLog(`📸 Saved photo for ward "${formatWardDisplay(cameraTargetWard)}"`, 'success');
+      const synced = await saveWardPhoto(cameraTargetWard, photoDataUrl);
+      addLog(
+        synced
+          ? `📸 Saved photo for ward "${formatWardDisplay(cameraTargetWard)}"`
+          : `⚠ Photo for ward "${formatWardDisplay(cameraTargetWard)}" saved on this device only — it will sync when the connection returns`,
+        synced ? 'success' : 'warn'
+      );
       setCameraTargetWard(null);
     } else if (cameraTargetVoter && cameraTargetVoter.id) {
-      await saveVoterPhoto(cameraTargetVoter.id, photoDataUrl);
       setPhotosMap((prev) => ({ ...prev, [String(cameraTargetVoter.id)]: photoDataUrl }));
-      addLog(`📸 Saved photo for ${cameraTargetVoter.full_name}`, 'success');
+      const synced = await saveVoterPhoto(cameraTargetVoter.id, photoDataUrl);
+      addLog(
+        synced
+          ? `📸 Saved photo for ${cameraTargetVoter.full_name}`
+          : `⚠ Photo for ${cameraTargetVoter.full_name} saved on this device only — it will sync when the connection returns`,
+        synced ? 'success' : 'warn'
+      );
       setCameraTargetVoter(null);
     } else {
       setFormData((prev) => ({ ...prev, photo: photoDataUrl }));
@@ -734,9 +759,14 @@ export default function App({ user }: { user: IdentityUser }) {
 
       if (savedId) {
         if (formData.photo) {
-          await saveVoterPhoto(savedId, formData.photo);
           setPhotosMap((prev) => ({ ...prev, [String(savedId)]: formData.photo! }));
-          addLog(`📸 Saved photo for voter #${savedId}`, 'info');
+          const synced = await saveVoterPhoto(savedId, formData.photo);
+          addLog(
+            synced
+              ? `📸 Saved photo for voter #${savedId}`
+              : `⚠ Photo for voter #${savedId} saved on this device only — it will sync when the connection returns`,
+            synced ? 'info' : 'warn'
+          );
         } else if (editingVoter) {
           await deleteVoterPhoto(savedId);
           setPhotosMap((prev) => {
