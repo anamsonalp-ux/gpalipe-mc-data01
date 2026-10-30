@@ -1,21 +1,19 @@
 import React, { useEffect, useState } from 'react';
-import { Database, Lock, Mail, User as UserIcon, AlertCircle, CheckCircle, LogIn, KeyRound } from 'lucide-react';
+import { Database, Lock, Mail, AlertCircle, CheckCircle, LogIn, KeyRound } from 'lucide-react';
 import {
   AuthError,
   MissingIdentityError,
   acceptInvite,
-  getSettings,
   getUser,
   handleAuthCallback,
   login,
   onAuthChange,
   requestPasswordRecovery,
-  signup,
   updateUser,
   type User,
 } from '@netlify/identity';
 
-type Mode = 'login' | 'signup' | 'forgot' | 'reset' | 'invite';
+type Mode = 'login' | 'forgot' | 'reset' | 'invite';
 
 function describeError(error: unknown): string {
   if (error instanceof MissingIdentityError) {
@@ -26,7 +24,7 @@ function describeError(error: unknown): string {
       case 401:
         return 'Invalid email or password.';
       case 403:
-        return 'New sign-ups are disabled. Ask an administrator for an invite.';
+        return 'Self sign-up is disabled. Ask an administrator to create your account.';
       case 422:
         return 'Please check your email and password (passwords need at least 8 characters).';
       default:
@@ -45,9 +43,7 @@ export function AuthGate({ children }: AuthGateProps) {
   const [checking, setChecking] = useState(true);
   const [mode, setMode] = useState<Mode>('login');
   const [inviteToken, setInviteToken] = useState<string | null>(null);
-  const [signupAllowed, setSignupAllowed] = useState(false);
 
-  const [name, setName] = useState('');
   const [email, setEmail] = useState('');
   const [password, setPassword] = useState('');
   const [submitting, setSubmitting] = useState(false);
@@ -80,13 +76,6 @@ export function AuthGate({ children }: AuthGateProps) {
         setUser(current);
         setChecking(false);
       }
-
-      try {
-        const settings = await getSettings();
-        if (!cancelled) setSignupAllowed(!settings.disableSignup);
-      } catch {
-        // Settings unavailable — keep sign-up hidden
-      }
     })();
 
     const unsubscribe = onAuthChange((_event, nextUser) => setUser(nextUser));
@@ -111,14 +100,6 @@ export function AuthGate({ children }: AuthGateProps) {
     try {
       if (mode === 'login') {
         setUser(await login(email.trim(), password));
-      } else if (mode === 'signup') {
-        const created = await signup(email.trim(), password, { full_name: name.trim() });
-        if (created.confirmedAt) {
-          setUser(created);
-        } else {
-          switchMode('login');
-          setNotice('Account created. Check your email to confirm it, then sign in.');
-        }
       } else if (mode === 'forgot') {
         await requestPasswordRecovery(email.trim());
         setNotice('If that email has an account, a password reset link is on its way.');
@@ -152,13 +133,12 @@ export function AuthGate({ children }: AuthGateProps) {
 
   const titles: Record<Mode, { title: string; subtitle: string; button: string }> = {
     login: { title: 'Sign in', subtitle: 'Access the voter database', button: 'Sign in' },
-    signup: { title: 'Create account', subtitle: 'Register to access the voter database', button: 'Create account' },
     forgot: { title: 'Reset password', subtitle: "We'll email you a reset link", button: 'Send reset link' },
     reset: { title: 'Set new password', subtitle: 'Enter a new password for your account', button: 'Save password' },
     invite: { title: 'Accept invitation', subtitle: 'Set a password to finish creating your account', button: 'Activate account' },
   };
   const copy = titles[mode];
-  const needsEmail = mode === 'login' || mode === 'signup' || mode === 'forgot';
+  const needsEmail = mode === 'login' || mode === 'forgot';
   const needsPassword = mode !== 'forgot';
 
   return (
@@ -191,22 +171,6 @@ export function AuthGate({ children }: AuthGateProps) {
               <CheckCircle className="w-4 h-4 mt-0.5 shrink-0" />
               <span>{notice}</span>
             </div>
-          )}
-
-          {mode === 'signup' && (
-            <label className="block">
-              <span className="text-xs font-semibold text-slate-600">Full name</span>
-              <div className="mt-1 relative">
-                <UserIcon className="w-4 h-4 text-slate-400 absolute left-3 top-1/2 -translate-y-1/2" />
-                <input
-                  type="text"
-                  value={name}
-                  onChange={(e) => setName(e.target.value)}
-                  autoComplete="name"
-                  className="w-full pl-9 pr-3 py-2.5 rounded-lg border border-slate-300 text-sm focus:outline-none focus:ring-2 focus:ring-emerald-500"
-                />
-              </div>
-            </label>
           )}
 
           {needsEmail && (
@@ -261,17 +225,12 @@ export function AuthGate({ children }: AuthGateProps) {
                 <button type="button" onClick={() => switchMode('forgot')} className="text-emerald-700 hover:underline cursor-pointer">
                   Forgot your password?
                 </button>
-                {signupAllowed && (
-                  <span className="text-slate-500">
-                    No account?{' '}
-                    <button type="button" onClick={() => switchMode('signup')} className="text-emerald-700 font-semibold hover:underline cursor-pointer">
-                      Create one
-                    </button>
-                  </span>
-                )}
+                <span className="text-slate-500 text-xs text-center">
+                  Accounts are created by the administrator.
+                </span>
               </>
             )}
-            {(mode === 'signup' || mode === 'forgot') && (
+            {mode === 'forgot' && (
               <button type="button" onClick={() => switchMode('login')} className="text-emerald-700 hover:underline cursor-pointer">
                 Back to sign in
               </button>
