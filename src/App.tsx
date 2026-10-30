@@ -25,7 +25,8 @@ import {
   RefreshCw,
   Pencil,
   Sparkles,
-  LogOut
+  LogOut,
+  ShieldCheck
 } from 'lucide-react';
 import {
   Voter,
@@ -47,6 +48,7 @@ import { logout, type User as IdentityUser } from '@netlify/identity';
 import { CameraCaptureModal } from './components/CameraCaptureModal';
 import { AddWardModal } from './components/AddWardModal';
 import { WardStatisticsModal } from './components/WardStatisticsModal';
+import { UserManagementModal } from './components/UserManagementModal';
 import { saveVoterPhoto, getVoterPhoto, deleteVoterPhoto, generateDummyVoterPhoto, compressImage, saveWardPhoto, getWardPhoto } from './lib/photoStorage';
 
 interface LogEntry {
@@ -133,6 +135,8 @@ export default function App({ user }: { user: IdentityUser }) {
   const [editingWardTarget, setEditingWardTarget] = useState<string | null>(null);
   const [viewingPhoto, setViewingPhoto] = useState<{ name: string; photoUrl: string } | null>(null);
   const [isSettingsOpen, setIsSettingsOpen] = useState(false);
+  const [isUsersOpen, setIsUsersOpen] = useState(false);
+  const isAdmin = !!user.roles?.includes('admin');
   const [editingVoter, setEditingVoter] = useState<Voter | null>(null);
   const [deletingVoter, setDeletingVoter] = useState<Voter | null>(null);
 
@@ -917,6 +921,16 @@ export default function App({ user }: { user: IdentityUser }) {
             >
               <Settings className="w-4 h-4" />
             </button>
+
+            {isAdmin && (
+              <button
+                onClick={() => setIsUsersOpen(true)}
+                title="Manage user accounts"
+                className="p-1.5 rounded-lg bg-white/10 hover:bg-white/20 text-white transition-all cursor-pointer"
+              >
+                <ShieldCheck className="w-4 h-4" />
+              </button>
+            )}
 
             <span className="hidden sm:inline text-xs text-slate-400 max-w-[180px] truncate" title={user.email}>
               {user.name || user.email}
@@ -1817,6 +1831,8 @@ export default function App({ user }: { user: IdentityUser }) {
           </div>
         </div>
       )}
+
+      {isUsersOpen && <UserManagementModal currentUserId={user.id} onClose={() => setIsUsersOpen(false)} />}
 
       {/* Settings Modal */}
       {isSettingsOpen && (
