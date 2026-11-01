@@ -1027,7 +1027,7 @@ export default function App({ user }: { user: IdentityUser }) {
                 placeholder="Search voter name..."
                 value={searchTerm}
                 onChange={(e) => setSearchTerm(e.target.value)}
-                className="w-full pl-10 pr-9 py-2.5 bg-white border border-slate-300 rounded-lg text-sm focus:outline-none focus:ring-2 focus:ring-indigo-500 transition-all text-slate-800 placeholder-slate-400"
+                className="w-full pl-10 pr-9 py-2.5 bg-white border border-slate-300 rounded-lg text-sm focus:outline-none focus:ring-2 focus:ring-indigo-500 transition-all text-slate-800 placeholder:text-slate-400"
               />
               {searchTerm && (
                 <button
@@ -1087,7 +1087,7 @@ export default function App({ user }: { user: IdentityUser }) {
                 setEditingWardTarget(null);
                 setIsWardModalOpen(true);
               }}
-              className="flex-1 sm:flex-none py-2.5 px-6 bg-gradient-to-r from-indigo-600 to-purple-600 hover:from-indigo-700 hover:to-purple-700 text-white font-semibold text-sm rounded-lg shadow-sm transition-all flex items-center justify-center gap-2 cursor-pointer active:scale-95"
+              className="flex-1 sm:flex-none py-2.5 px-6 bg-gradient-to-r from-indigo-600 to-purple-600 hover:from-indigo-700 hover:to-purple-700 text-white font-semibold text-sm rounded-lg shadow-sm transition-all flex items-center justify-center gap-2 cursor-pointer"
             >
               <Plus className="w-4 h-4" />
               <span>+ Add Wards</span>
@@ -1100,7 +1100,7 @@ export default function App({ user }: { user: IdentityUser }) {
                 setEditingWardTarget(selectedWard || (wards.length > 0 ? wards[0] : null));
                 setIsWardModalOpen(true);
               }}
-              className="flex-1 sm:flex-none py-2.5 px-5 bg-gradient-to-r from-indigo-600 to-purple-600 hover:from-indigo-700 hover:to-purple-700 text-white font-semibold text-sm rounded-lg shadow-sm transition-all flex items-center justify-center gap-2 cursor-pointer active:scale-95"
+              className="flex-1 sm:flex-none py-2.5 px-5 bg-gradient-to-r from-indigo-600 to-purple-600 hover:from-indigo-700 hover:to-purple-700 text-white font-semibold text-sm rounded-lg shadow-sm transition-all flex items-center justify-center gap-2 cursor-pointer"
               title="Edit existing ward names"
             >
               <Pencil className="w-4 h-4" />
@@ -1114,7 +1114,7 @@ export default function App({ user }: { user: IdentityUser }) {
                 fetchWardStats();
                 setIsWardStatsModalOpen(true);
               }}
-              className="flex-1 sm:flex-none py-2.5 px-5 bg-gradient-to-r from-blue-600 via-indigo-600 to-indigo-700 hover:from-blue-700 hover:to-indigo-800 text-white font-semibold text-sm rounded-lg shadow-sm transition-all flex items-center justify-center gap-2 cursor-pointer active:scale-95"
+              className="flex-1 sm:flex-none py-2.5 px-5 bg-gradient-to-r from-blue-600 via-indigo-600 to-indigo-700 hover:from-blue-700 hover:to-indigo-800 text-white font-semibold text-sm rounded-lg shadow-sm transition-all flex items-center justify-center gap-2 cursor-pointer"
               title="Open comprehensive Ward Statistics & Distribution"
             >
               <BarChart2 className="w-4 h-4 text-sky-200" />
@@ -1125,13 +1125,12 @@ export default function App({ user }: { user: IdentityUser }) {
             <button
               type="button"
               onClick={handleQuickCamera}
-              className="flex-1 sm:flex-none py-2.5 px-5 bg-gradient-to-r from-purple-600 to-pink-600 hover:from-purple-700 hover:to-pink-700 text-white font-semibold text-sm rounded-lg shadow-sm transition-all flex items-center justify-center gap-2 cursor-pointer active:scale-95"
+              className="flex-1 sm:flex-none py-2.5 px-5 bg-gradient-to-r from-purple-600 to-pink-600 hover:from-purple-700 hover:to-pink-700 text-white font-semibold text-sm rounded-lg shadow-sm transition-all flex items-center justify-center gap-2 cursor-pointer"
               title="Open camera to take portrait"
             >
               <Camera className="w-4 h-4" />
               <span>Camera</span>
             </button>
-
 
             {/* Export CSV (Light Button with download tray icon) */}
             <button
@@ -1300,7 +1299,7 @@ export default function App({ user }: { user: IdentityUser }) {
                                   photoUrl: photo,
                                 })
                               }
-                              className="w-8 h-8 rounded-full overflow-hidden border border-indigo-200/90 hover:ring-2 hover:ring-indigo-500 transition-all cursor-pointer shadow-2xs block"
+                              className="w-10 h-10 rounded-full overflow-hidden border border-indigo-200/90 hover:ring-2 hover:ring-indigo-500 transition-all cursor-pointer shadow-md block"
                               title="Click to view photo"
                             >
                               <img src={photo} alt="" className="w-full h-full object-cover" />
@@ -1371,7 +1370,7 @@ export default function App({ user }: { user: IdentityUser }) {
                           <button
                             type="button"
                             onClick={() => handleRowCamera(voter)}
-                            className="bg-purple-50 hover:bg-purple-100 text-purple-700 border border-purple-200 font-semibold text-xs px-2.5 py-1 rounded-md transition-all flex items-center gap-1 cursor-pointer active:scale-95 shadow-2xs"
+                            className="bg-purple-50 hover:bg-purple-100 text-purple-700 border border-purple-200 font-semibold text-xs px-2.5 py-1 rounded-md transition-all flex items-center gap-1 cursor-pointer"
                             title="Take photo with Live Camera"
                           >
                             <Camera className="w-3.5 h-3.5 text-purple-600" />
@@ -1494,7 +1493,7 @@ export default function App({ user }: { user: IdentityUser }) {
                         <img
                           src={formData.photo}
                           alt="Voter Profile Photo"
-                          className="w-24 h-24 sm:w-28 sm:h-28 rounded-2xl object-cover border-2 border-indigo-500 shadow-md ring-4 ring-indigo-100/60"
+                          className="w-28 h-28 sm:w-32 sm:h-32 rounded-2xl object-cover border-2 border-indigo-500 shadow-md ring-4 ring-indigo-100/60"
                         />
                         <div className="absolute -bottom-2 -right-1 bg-emerald-600 text-white text-[10px] font-bold px-2 py-0.5 rounded-full shadow-xs flex items-center gap-1 border border-white">
                           <CheckCircle className="w-3 h-3" />
@@ -1502,7 +1501,7 @@ export default function App({ user }: { user: IdentityUser }) {
                         </div>
                       </div>
                     ) : (
-                      <div className="w-24 h-24 sm:w-28 sm:h-28 rounded-2xl border-2 border-dashed border-indigo-200 bg-white flex flex-col items-center justify-center text-slate-400 group hover:border-indigo-400 shadow-2xs">
+                      <div className="w-28 h-28 sm:w-32 sm:h-32 rounded-2xl border-2 border-dashed border-indigo-200 bg-white flex flex-col items-center justify-center text-slate-400 group hover:border-indigo-300 transition-colors">
                         <div className="w-10 h-10 rounded-full bg-indigo-50 flex items-center justify-center text-indigo-500 mb-1">
                           <Camera className="w-5 h-5" />
                         </div>
@@ -1536,13 +1535,13 @@ export default function App({ user }: { user: IdentityUser }) {
                       <button
                         type="button"
                         onClick={() => setIsCameraModalOpen(true)}
-                        className="px-3.5 py-2 bg-gradient-to-r from-indigo-600 to-purple-600 hover:from-indigo-700 hover:to-purple-700 text-white rounded-xl text-xs font-bold transition-all shadow-xs flex items-center gap-1.5 cursor-pointer active:scale-95"
+                        className="px-3.5 py-2 bg-gradient-to-r from-indigo-600 to-purple-600 hover:from-indigo-700 hover:to-purple-700 text-white rounded-xl text-xs font-bold transition-all shadow-sm flex items-center gap-1.5 cursor-pointer"
                       >
                         <Camera className="w-3.5 h-3.5" />
                         <span>{formData.photo ? 'Retake Photo' : 'Live Camera'}</span>
                       </button>
 
-                      <label className="px-3.5 py-2 bg-white hover:bg-slate-50 text-slate-700 border border-slate-300 rounded-xl text-xs font-bold transition-all shadow-2xs flex items-center gap-1.5 cursor-pointer active:scale-95">
+                      <label className="px-3.5 py-2 bg-white hover:bg-slate-50 text-slate-700 border border-slate-300 rounded-xl text-xs font-bold transition-all shadow-2xs flex items-center gap-1.5 cursor-pointer">
                         <Upload className="w-3.5 h-3.5 text-slate-500" />
                         <span>{formData.photo ? 'Change File' : 'Device Camera / Files'}</span>
                         <input
@@ -1558,7 +1557,7 @@ export default function App({ user }: { user: IdentityUser }) {
                         <button
                           type="button"
                           onClick={() => setFormData((prev) => ({ ...prev, photo: null }))}
-                          className="px-3 py-2 bg-rose-50 hover:bg-rose-100 text-rose-600 border border-rose-200 rounded-xl text-xs font-bold transition-all flex items-center gap-1 cursor-pointer active:scale-95"
+                          className="px-3 py-2 bg-rose-50 hover:bg-rose-100 text-rose-600 border border-rose-200 rounded-xl text-xs font-bold transition-all flex items-center gap-1 cursor-pointer"
                           title="Remove attached photo"
                         >
                           <Trash2 className="w-3.5 h-3.5" />
@@ -1756,7 +1755,7 @@ export default function App({ user }: { user: IdentityUser }) {
                   <button
                     type="submit"
                     disabled={formSubmitting}
-                    className="px-6 py-2 bg-indigo-600 hover:bg-indigo-700 disabled:opacity-50 text-white text-xs font-bold rounded-lg shadow-sm transition-all cursor-pointer flex items-center gap-1.5"
+                    className="px-6 py-2 bg-indigo-600 hover:bg-indigo-700 disabled:opacity-50 text-white text-xs font-bold rounded-lg shadow-sm transition-all cursor-pointer flex items-center gap-2"
                   >
                     {formSubmitting ? (
                       <>
@@ -1934,3 +1933,4 @@ export default function App({ user }: { user: IdentityUser }) {
     </div>
   );
 }
+
