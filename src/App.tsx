@@ -1299,7 +1299,7 @@ export default function App({ user }: { user: IdentityUser }) {
                                   photoUrl: photo,
                                 })
                               }
-                              className="w-10 h-10 rounded-full overflow-hidden border border-indigo-200/90 hover:ring-2 hover:ring-indigo-500 transition-all cursor-pointer shadow-md block"
+                              className="w-14 h-14 sm:w-16 sm:h-16 rounded-full overflow-hidden border border-indigo-200/90 hover:ring-2 hover:ring-indigo-500 transition-all cursor-pointer shadow-md block"
                               title="Click to view photo"
                             >
                               <img src={photo} alt="" className="w-full h-full object-cover" />
@@ -1493,7 +1493,7 @@ export default function App({ user }: { user: IdentityUser }) {
                         <img
                           src={formData.photo}
                           alt="Voter Profile Photo"
-                          className="w-28 h-28 sm:w-32 sm:h-32 rounded-2xl object-cover border-2 border-indigo-500 shadow-md ring-4 ring-indigo-100/60"
+                          className="w-32 h-32 sm:w-36 sm:h-36 rounded-2xl object-cover border-2 border-indigo-500 shadow-md ring-4 ring-indigo-100/60"
                         />
                         <div className="absolute -bottom-2 -right-1 bg-emerald-600 text-white text-[10px] font-bold px-2 py-0.5 rounded-full shadow-xs flex items-center gap-1 border border-white">
                           <CheckCircle className="w-3 h-3" />
@@ -1501,7 +1501,7 @@ export default function App({ user }: { user: IdentityUser }) {
                         </div>
                       </div>
                     ) : (
-                      <div className="w-28 h-28 sm:w-32 sm:h-32 rounded-2xl border-2 border-dashed border-indigo-200 bg-white flex flex-col items-center justify-center text-slate-400 group hover:border-indigo-300 transition-colors">
+                      <div className="w-32 h-32 sm:w-36 sm:h-36 rounded-2xl border-2 border-dashed border-indigo-200 bg-white flex flex-col items-center justify-center text-slate-400 group hover:border-indigo-300 transition-colors">
                         <div className="w-10 h-10 rounded-full bg-indigo-50 flex items-center justify-center text-indigo-500 mb-1">
                           <Camera className="w-5 h-5" />
                         </div>
@@ -1933,4 +1933,3 @@ export default function App({ user }: { user: IdentityUser }) {
     </div>
   );
 }
-
