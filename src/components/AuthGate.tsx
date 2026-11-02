@@ -72,7 +72,6 @@ export function AuthGate({ children }: AuthGateProps) {
 
       const current = await getUser();
       if (!cancelled) {
-        // During recovery the user is signed in but must set a new password first
         setUser(current);
         setChecking(false);
       }
@@ -119,7 +118,6 @@ export function AuthGate({ children }: AuthGateProps) {
     }
   };
 
-
   if (checking) {
     return (
       <div id="login">
@@ -133,18 +131,35 @@ export function AuthGate({ children }: AuthGateProps) {
   }
 
   const titles: Record<Mode, { title: string; subtitle: string; button: string }> = {
-    login: { title: 'Advanced Voter Database', subtitle: 'Gibson Palipe · Mendi Central Open. Sign in to view and update voter records.', button: 'Sign in' },
-    forgot: { title: 'Reset password', subtitle: 'For accounts that use an email address.', button: 'Send reset link' },
-    reset: { title: 'Set new password', subtitle: 'Enter a new password for your account.', button: 'Save password' },
-    invite: { title: 'Accept invitation', subtitle: 'Set a password to finish creating your account.', button: 'Activate account' },
+    login: {
+      title: 'Advanced Voter Database',
+      subtitle: 'Gibson Palipe · Mendi Central Open. Sign in to view and update voter records.',
+      button: 'Sign in',
+    },
+    forgot: {
+      title: 'Reset password',
+      subtitle: 'For accounts that use an email address.',
+      button: 'Send reset link',
+    },
+    reset: {
+      title: 'Set new password',
+      subtitle: 'Enter a new password for your account.',
+      button: 'Save password',
+    },
+    invite: {
+      title: 'Accept invitation',
+      subtitle: 'Set a password to finish creating your account.',
+      button: 'Activate account',
+    },
   };
+
   const copy = titles[mode];
   const needsEmail = mode === 'login' || mode === 'forgot';
   const needsPassword = mode !== 'forgot';
 
   return (
     <div id="login">
-      <form className="card" onSubmit={handleSubmit}>
+      <form className="card auth-panel" onSubmit={handleSubmit}>
         <h1>{copy.title}</h1>
         <p>{copy.subtitle}</p>
 
