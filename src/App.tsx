@@ -45,7 +45,7 @@ const WARDS = [
 ];
 
 const wardKey = (w: string) =>
-  w.toLowerCase().replace(/^\s*\d+\s*\.\s*/, '').replace(/[^a-z0-9]+/g, '');
+  w.toLowerCase().replace(/^\s*\d+\s*\.\s*/, '').replace(/[^a-z0-9]+/g, ' ');
 
 // Older records were typed in different spellings; these map onto the names above.
 const WARD_LOOKUP = new Map<string, string>([
